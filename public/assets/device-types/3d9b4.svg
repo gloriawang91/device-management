@@ -1,0 +1,11 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="water_drop">
+<path id="Vector" d="M9 1.5C5.0025 4.9125 3 7.86 3 10.35C3 14.085 5.85 16.5 9 16.5C12.15 16.5 15 14.085 15 10.35C15 7.86 12.9975 4.9125 9 1.5ZM9 15C6.4875 15 4.5 13.0725 4.5 10.35C4.5 8.595 5.9625 6.27 9 3.495C12.0375 6.27 13.5 8.5875 13.5 10.35C13.5 13.0725 11.5125 15 9 15ZM5.8725 10.5C6.15 10.5 6.375 10.695 6.4275 10.965C6.735 12.63 8.1375 13.2 9.1575 13.1175C9.48 13.1025 9.75 13.3575 9.75 13.68C9.75 13.98 9.51 14.2275 9.21 14.2425C7.6125 14.34 5.745 13.425 5.3175 11.1525C5.2575 10.815 5.5275 10.5 5.8725 10.5Z" fill="url(#paint0_linear_0_28)"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_28" x1="3" y1="9" x2="15" y2="9" gradientUnits="userSpaceOnUse">
+<stop stop-color="#0047BA"/>
+<stop offset="1" stop-color="#00A7E1"/>
+</linearGradient>
+</defs>
+</svg>

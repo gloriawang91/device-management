@@ -1,0 +1,10 @@
+{
+  "description": "Manage and monitor site meters with real-time status, filtering, bulk actions, and detailed insights to optimize device health and operations.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
