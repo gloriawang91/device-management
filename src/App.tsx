@@ -1,16 +1,22 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type Meter = {
   id: number; name: string; edgeId: string; type: string; source: string;
   status: string; online: string; critical: string; excluded: string; notifications: string;
   lastData: string; dataFormat: string; comAddress: string;
-  contactName: string; contactEmail: string; contactPhone: string;
+  contactName: string; contactEmail: string; contactPhone: string; supplierName?: string;
   criticalReason?: string; excludedFrom?: string; excludedTo?: string;
-  excludedNoEndDate?: boolean; excludedReason?: string; notificationComment?: string;
-  ctRatio?: string; pulseRatio?: string;
+  excludedNoEndDate?: boolean; excludedReason?: string; notificationComment?: string; notificationScope?: string;
+  ctRatio?: string; pulseRatio?: string; channels?: string; apiDeviceId?: string;
+  smartcomId?: string; stringNumber?: string; inputNumber?: string; baudRate?: string;
+  cumulocityId?: string; apiParameter?: string; nmiSuffix?: string; bmsConnectionPoint?: string;
+  internalOnly?: boolean;
   nmiNo: string; serialNo: string; serialValidFrom?: string;
   serialHistory?: { serialNo: string; validFrom: string; validTo: string }[];
   captisNumber: string;
+  captisValidFrom?: string;
+  captisHistory?: { captisNumber: string; validFrom: string; validTo: string }[];
 };
 
 type NewMeterInput = {
@@ -22,22 +28,34 @@ type NewMeterInput = {
   nmiNo: string;
   serialNo: string;
   captisNumber: string;
+  apiParameter: string;
+  contactName: string;
+  contactEmail: string;
+  contactPhone: string;
+  supplierName: string;
+  internalOnly: boolean;
 };
 
 const INITIAL_METERS: Meter[] = [
-  { id: 1, name: "Main Electricity", edgeId: "EDGE-5231", type: "Electricity", source: "CAPTIS", status: "Inactive", online: "Offline", critical: "No", excluded: "No", notifications: "Disabled", lastData: "2 min ago", dataFormat: "Captis API", comAddress: "192.168.1.48:502", contactName: "James Rourke", contactEmail: "j.rourke@ausgrid.com.au", contactPhone: "+61 2 9000 1234", ctRatio: "400:5", nmiNo: "NMI6301847200", serialNo: "883104220481", captisNumber: "CAP-00241" },
-  { id: 2, name: "Chiller Plant", edgeId: "EDGE-3112", type: "Water", source: "SmartCom", status: "Active", online: "Offline", critical: "No", excluded: "No", notifications: "Enabled", lastData: "4 h ago", dataFormat: "CSV", comAddress: "10.0.0.22:4001", contactName: "Sandra Lim", contactEmail: "s.lim@jci.com", contactPhone: "+61 2 8801 5500", nmiNo: "NMI6303112048", serialNo: "311204781550", captisNumber: "CAP-00105" },
-  { id: 3, name: "Water Device 01", edgeId: "EDGE-7301", type: "Water", source: "SmartCom II", status: "Active", online: "Online", critical: "No", excluded: "No", notifications: "Enabled", lastData: "3 min ago", dataFormat: "CSV", comAddress: "10.0.1.12:8080", contactName: "—", contactEmail: "—", contactPhone: "—", pulseRatio: "1 pulse / 10 L", nmiNo: "NMI6304120389", serialNo: "204918770326", captisNumber: "CAP-00389" },
-  { id: 4, name: "Water Device 02", edgeId: "EDGE-4120", type: "Thermal", source: "Starcom", status: "Inactive", online: "Offline", critical: "No", excluded: "Yes", notifications: "Enabled", lastData: "8 h ago", dataFormat: "CSV", comAddress: "192.168.2.11:502", contactName: "Troy Hallis", contactEmail: "t.hallis@agl.com.au", contactPhone: "+61 3 8622 4100", pulseRatio: "1 pulse / 1 m³", nmiNo: "NMI6309012847", serialNo: "770240523104", captisNumber: "—" },
-  { id: 5, name: "Solar Inverter A", edgeId: "EDGE-7410", type: "Gas", source: "CAPTIS", status: "Active", online: "Online", critical: "No", excluded: "No", notifications: "Disabled", lastData: "1 min ago", dataFormat: "Captis API", comAddress: "192.168.1.72:1502", contactName: "Priya Desai", contactEmail: "p.desai@fronius.com", contactPhone: "+61 7 3001 8842", ctRatio: "200:5", nmiNo: "NMI6300281947", serialNo: "600188427219", captisNumber: "CAP-00601" },
-  { id: 6, name: "BMS Air Handler", edgeId: "EDGE-6204", type: "Electricity", source: "Edge G6", status: "Active", online: "Online", critical: "Yes", excluded: "No", notifications: "Enabled", lastData: "1 min ago", dataFormat: "BACnet/IP", comAddress: "10.0.0.88:47808", contactName: "Mark Stenhouse", contactEmail: "m.stenhouse@siemens.com", contactPhone: "+61 2 9394 5000", nmiNo: "NMI6306204178", serialNo: "620418939450", captisNumber: "CAP-00178" },
-  { id: 7, name: "Cold Water Riser", edgeId: "EDGE-7044", type: "Gas", source: "BACNET_1", status: "Inactive", online: "Offline", critical: "Yes", excluded: "No", notifications: "Enabled", lastData: "8 days ago", dataFormat: "BACnet/IP", comAddress: "10.0.1.31:8080", contactName: "—", contactEmail: "—", contactPhone: "—", pulseRatio: "1 pulse / 50 L", nmiNo: "NMI6307044412", serialNo: "704412508031", captisNumber: "CAP-00412" },
-  { id: 8, name: "Emergency Generator", edgeId: "EDGE-7188", type: "Digital", source: "NEM12", status: "Active", online: "Online", critical: "No", excluded: "No", notifications: "Enabled", lastData: "5 min ago", dataFormat: "NEM12", comAddress: "192.168.1.91:502", contactName: "Alex Nguyen", contactEmail: "a.nguyen@health.nsw.gov.au", contactPhone: "+61 2 9382 7111", ctRatio: "600:5", nmiNo: "NMI6307188042", serialNo: "718804291602", captisNumber: "—" },
-  { id: 9, name: "Domestic Hot Water", edgeId: "EDGE-7236", type: "Analog", source: "Planter", status: "Active", online: "Online", critical: "Yes", excluded: "No", notifications: "Enabled", lastData: "12 min ago", dataFormat: "CSV", comAddress: "10.0.1.45:8080", contactName: "Olivia Chen", contactEmail: "o.chen@health.nsw.gov.au", contactPhone: "+61 2 9382 7004", pulseRatio: "1 pulse / 10 L", nmiNo: "NMI6307236198", serialNo: "723619834201", captisNumber: "CAP-00518" },
-  { id: 10, name: "Theatre AHU 03", edgeId: "EDGE-6001", type: "Digital", source: "BACNET_1", status: "Active", online: "Offline", critical: "Yes", excluded: "Yes", notifications: "Enabled", lastData: "1 h ago", dataFormat: "BACnet/IP", comAddress: "10.0.0.103:47808", contactName: "Mark Stenhouse", contactEmail: "m.stenhouse@siemens.com", contactPhone: "+61 2 9394 5000", nmiNo: "NMI6307301554", serialNo: "730155409887", captisNumber: "—" },
-  { id: 11, name: "Medical Gas Plant", edgeId: "EDGE-2048", type: "Electricity", source: "MODBUS", status: "Active", online: "Offline", critical: "No", excluded: "No", notifications: "Enabled", lastData: "2 days ago", dataFormat: "Modbus TCP", comAddress: "192.168.2.24:502", contactName: "Troy Hallis", contactEmail: "t.hallis@agl.com.au", contactPhone: "+61 3 8622 4100", pulseRatio: "1 pulse / 1 m³", nmiNo: "NMI6307410273", serialNo: "741027354118", captisNumber: "—" },
-  { id: 12, name: "Car Park Lighting", edgeId: "EDGE-7522", type: "Thermal", source: "SmartCom II", status: "Active", online: "Online", critical: "No", excluded: "No", notifications: "Enabled", lastData: "7 min ago", dataFormat: "JSON", comAddress: "192.168.3.16:443", contactName: "Priya Desai", contactEmail: "p.desai@fronius.com", contactPhone: "+61 7 3001 8842", ctRatio: "100:5", nmiNo: "NMI6307522914", serialNo: "752291441056", captisNumber: "—" },
+  { id: 1, name: "Main Electricity", edgeId: "EDGE-5231", type: "Electricity", source: "CAPTIS", status: "In progress", online: "Online", critical: "No", excluded: "No", notifications: "Disabled", lastData: "2 min ago", dataFormat: "Captis API", comAddress: "192.168.1.48:502", contactName: "James Rourke", contactEmail: "j.rourke@ausgrid.com.au", contactPhone: "+61 2 9000 1234", supplierName: "Ausgrid", ctRatio: "400:5", nmiNo: "NMI6301847200", serialNo: "883104220481", captisNumber: "CAP-00241" },
+  { id: 2, name: "Chiller Plant", edgeId: "EDGE-3112", type: "Water", source: "CAPTIS", status: "Active", online: "Offline", critical: "No", excluded: "No", notifications: "Enabled", lastData: "4 h ago", dataFormat: "Captis API", comAddress: "10.0.0.22:4001", contactName: "Sandra Lim", contactEmail: "s.lim@jci.com", contactPhone: "+61 2 8801 5500", supplierName: "JCI", nmiNo: "NMI6303112048", serialNo: "311204781550", captisNumber: "CAP-00105", cumulocityId: "12345678910", apiParameter: "Pulse1_Total" },
+  { id: 3, name: "Water Device 01", edgeId: "EDGE-7301", type: "Water", source: "SmartCom II", status: "Active", online: "Online", critical: "No", excluded: "No", notifications: "Enabled", lastData: "3 min ago", dataFormat: "CSV", comAddress: "10.0.1.12:8080", contactName: "—", contactEmail: "—", contactPhone: "—", supplierName: "Sydney Water", pulseRatio: "1 pulse / 10 L", nmiNo: "NMI6304120389", serialNo: "204918770326", captisNumber: "CAP-00389" },
+  { id: 4, name: "Water Device 02", edgeId: "EDGE-4120", type: "Thermal", source: "NEM12", status: "In progress", online: "Online", critical: "No", excluded: "Yes", notifications: "Enabled", lastData: "8 h ago", dataFormat: "NEM12", comAddress: "192.168.2.11:502", contactName: "Troy Hallis", contactEmail: "t.hallis@agl.com.au", contactPhone: "+61 3 8622 4100", supplierName: "AGL", pulseRatio: "1 pulse / 1 m³", nmiNo: "NMI6309012847", serialNo: "770240523104", captisNumber: "—", nmiSuffix: "E1" },
+  { id: 5, name: "Solar Inverter A", edgeId: "EDGE-7410", type: "Gas", source: "CAPTIS", status: "Active", online: "Online", critical: "No", excluded: "No", notifications: "Disabled", lastData: "1 min ago", dataFormat: "Captis API", comAddress: "192.168.1.72:1502", contactName: "Priya Desai", contactEmail: "p.desai@fronius.com", contactPhone: "+61 7 3001 8842", supplierName: "Fronius", ctRatio: "200:5", nmiNo: "NMI6300281947", serialNo: "600188427219", captisNumber: "CAP-00601", internalOnly: true },
+  { id: 6, name: "BMS Air Handler", edgeId: "EDGE-6204", type: "Electricity", source: "Edge G6", status: "Active", online: "Online", critical: "Yes", excluded: "No", notifications: "Enabled", lastData: "1 min ago", dataFormat: "BACnet/IP", comAddress: "10.0.0.88:47808", contactName: "Mark Stenhouse", contactEmail: "m.stenhouse@siemens.com", contactPhone: "+61 2 9394 5000", supplierName: "Siemens", nmiNo: "NMI6306204178", serialNo: "620418939450", captisNumber: "CAP-00178", channels: "CT1, CT2" },
+  { id: 7, name: "Cold Water Riser", edgeId: "EDGE-7044", type: "Gas", source: "BACNET_1", status: "In progress", online: "Online", critical: "Yes", excluded: "No", notifications: "Enabled", lastData: "8 days ago", dataFormat: "BACnet/IP", comAddress: "10.0.1.31:8080", contactName: "—", contactEmail: "—", contactPhone: "—", supplierName: "Veolia", pulseRatio: "1 pulse / 50 L", nmiNo: "NMI6307044412", serialNo: "704412508031", captisNumber: "CAP-00412" },
+  { id: 8, name: "Emergency Generator", edgeId: "EDGE-7188", type: "Electricity", source: "NEM12", status: "Active", online: "Online", critical: "No", excluded: "No", notifications: "Enabled", lastData: "5 min ago", dataFormat: "NEM12", comAddress: "192.168.1.91:502", contactName: "Alex Nguyen", contactEmail: "a.nguyen@health.nsw.gov.au", contactPhone: "+61 2 9382 7111", supplierName: "NSW Health", ctRatio: "600:5", nmiNo: "NMI6307188042", serialNo: "718804291602", captisNumber: "—", nmiSuffix: "E1" },
+  { id: 9, name: "Domestic Hot Water", edgeId: "EDGE-7236", type: "Analog", source: "SmartCom II", status: "Active", online: "Online", critical: "Yes", excluded: "No", notifications: "Enabled", lastData: "12 min ago", dataFormat: "CSV", comAddress: "10.0.1.45:8080", contactName: "Olivia Chen", contactEmail: "o.chen@health.nsw.gov.au", contactPhone: "+61 2 9382 7004", supplierName: "NSW Health", pulseRatio: "1 pulse / 10 L", nmiNo: "NMI6307236198", serialNo: "723619834201", captisNumber: "CAP-00518" },
+  { id: 10, name: "Theatre AHU 03", edgeId: "EDGE-6001", type: "Digital", source: "BACNET_1", status: "Active", online: "Offline", critical: "Yes", excluded: "Yes", notifications: "Enabled", lastData: "1 h ago", dataFormat: "BACnet/IP", comAddress: "10.0.0.103:47808", contactName: "Mark Stenhouse", contactEmail: "m.stenhouse@siemens.com", contactPhone: "+61 2 9394 5000", supplierName: "Siemens", nmiNo: "NMI6307301554", serialNo: "730155409887", captisNumber: "—" },
+  { id: 11, name: "Medical Gas Plant", edgeId: "EDGE-2048", type: "Electricity", source: "BACNET_1", status: "Active", online: "Offline", critical: "No", excluded: "No", notifications: "Enabled", lastData: "2 days ago", dataFormat: "BACnet/IP", comAddress: "192.168.2.24:502", contactName: "Troy Hallis", contactEmail: "t.hallis@agl.com.au", contactPhone: "+61 3 8622 4100", supplierName: "AGL", pulseRatio: "1 pulse / 1 m³", nmiNo: "NMI6307410273", serialNo: "741027354118", captisNumber: "—" },
+  { id: 12, name: "Car park lighting", edgeId: "EDGE-7522", type: "Electricity", source: "Watt Watchers", status: "Active", online: "Online", critical: "No", excluded: "No", notifications: "Enabled", lastData: "7 min ago", dataFormat: "JSON", comAddress: "192.168.3.16:443", contactName: "Priya Desai", contactEmail: "p.desai@fronius.com", contactPhone: "+61 7 3001 8842", supplierName: "Fronius", ctRatio: "100:5", pulseRatio: "1000 imp/kWh", channels: "C1, C2, C3", apiDeviceId: "DDA4108895928", nmiNo: "NMI6307522914", serialNo: "752291441056", captisNumber: "—", internalOnly: true },
 ];
+
+const DUMMY_SUPPLIER_CONTACT = {
+  name: "Taylor Morgan",
+  email: "taylor.morgan@example.com",
+  phone: "+61 2 9000 0000",
+};
 
 type SortKey = keyof Meter;
 type View = "all" | "online" | "offline" | "critical" | "excluded";
@@ -50,17 +68,119 @@ const STATS = [
   { label: "Excluded", value: 7, filter: "excluded" as View },
 ];
 
+const HEADER_TOOLTIPS: Partial<Record<SortKey, { title: string; body: string }>> = {
+  online: {
+    title: "Online",
+    body: "Device is currently connected",
+  },
+  status: {
+    title: "Under commissioning",
+    body: "Visible to internal users only while commissioning is in progress, the device is expected to be online for testing. Once complete, the device becomes visible to all users and its status may be online or offline.",
+  },
+  excluded: {
+    title: "Excluded",
+    body: "This device is excluded from automated monitoring and missing data checks",
+  },
+};
+
+const COLUMN_FILTERS: Partial<Record<SortKey, { label: string; value: string }[]>> = {
+  type: ["Electricity", "Gas", "Water", "Thermal", "Analog", "Digital"].map(value => ({ label: value, value })),
+  source: ["Edge G6", "SmartCom II", "SmartCom", "BACNET_1", "CAPTIS", "NEM12", "Watt Watchers"].map(value => ({ label: value, value })),
+  supplierName: ["AGL", "Ausgrid", "Fronius", "JCI", "NSW Health", "Siemens", "Sydney Water", "Veolia", "Unassigned"].map(value => ({ label: value, value })),
+  online: [{ label: "Online", value: "Online" }, { label: "Offline", value: "Offline" }],
+  internalOnly: [{ label: "Yes", value: "Yes" }, { label: "No", value: "No" }],
+  status: [{ label: "Active", value: "Active" }, { label: "In progress", value: "In progress" }],
+  critical: [{ label: "Critical", value: "Yes" }, { label: "Non-critical", value: "No" }],
+  excluded: [{ label: "Excluded", value: "Yes" }, { label: "Included", value: "No" }],
+  notifications: [{ label: "On", value: "Enabled" }, { label: "Off", value: "Disabled" }],
+};
+
+function onlineValue(meter: Meter) {
+  return meter.status === "In progress" || meter.status === "Inactive" ? "Online" : meter.online;
+}
+
+function internalOnlyValue(meter: Meter) {
+  return meter.internalOnly ? "Yes" : "No";
+}
+
+function formatEdgeId(id: string) {
+  return /^\d+$/.test(id) ? `PM-${id}` : id;
+}
+
+function formatUploadSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function downloadUpload(file: File) {
+  const url = URL.createObjectURL(file);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = file.name;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 const ALL_COLUMN_KEYS: SortKey[] = [
   "name",
   "edgeId",
   "type",
   "source",
+  "supplierName",
   "online",
+  "internalOnly",
   "status",
   "critical",
   "excluded",
   "notifications",
 ];
+
+type ExportFieldKey =
+  | "name" | "edgeId" | "type" | "source" | "online" | "status" | "critical" | "excluded"
+  | "serialNo" | "channels" | "comAddress" | "baudRate" | "ctRatio" | "inputNumber" | "pulseRatio";
+
+const DEFAULT_EXPORT_FIELDS: { key: ExportFieldKey; label: string; locked?: boolean }[] = [
+  { key: "name", label: "Device name", locked: true },
+  { key: "edgeId", label: "Edge device ID", locked: true },
+  { key: "type", label: "Device type" },
+  { key: "source", label: "Data source" },
+  { key: "online", label: "Online status" },
+  { key: "status", label: "Under commissioning" },
+  { key: "critical", label: "Critical status" },
+  { key: "excluded", label: "Excluded status" },
+];
+
+const OPTIONAL_EXPORT_FIELDS: {
+  key: ExportFieldKey;
+  label: string;
+  compatibility: [boolean, boolean, boolean];
+}[] = [
+  { key: "serialNo", label: "Serial number", compatibility: [true, false, false] },
+  { key: "channels", label: "String number", compatibility: [true, true, false] },
+  { key: "comAddress", label: "Meter address", compatibility: [true, true, false] },
+  { key: "baudRate", label: "Baud rate", compatibility: [true, true, false] },
+  { key: "ctRatio", label: "CT ratio", compatibility: [true, true, false] },
+  { key: "inputNumber", label: "Input number", compatibility: [false, false, true] },
+  { key: "pulseRatio", label: "Pulse ratio", compatibility: [false, false, true] },
+];
+
+function withMissingColumns(order: SortKey[], visible: SortKey[]) {
+  const nextOrder = [...order];
+  const inserted: SortKey[] = [];
+  ALL_COLUMN_KEYS.forEach(key => {
+    if (nextOrder.includes(key)) return;
+    inserted.push(key);
+    const earlier = ALL_COLUMN_KEYS.slice(0, ALL_COLUMN_KEYS.indexOf(key)).reverse().find(item => nextOrder.includes(item));
+    nextOrder.splice(earlier ? nextOrder.indexOf(earlier) + 1 : nextOrder.length, 0, key);
+  });
+  const nextVisible = [...visible];
+  inserted.forEach(key => {
+    if (key === "supplierName" || nextVisible.includes(key)) return;
+    nextVisible.push(key);
+  });
+  return { order: nextOrder, visible: nextVisible };
+}
 
 const DEVICE_TYPE_ICONS: Record<string, string> = {
   Electricity: "/assets/device-types/271c6.svg",
@@ -73,6 +193,71 @@ const DEVICE_TYPE_ICONS: Record<string, string> = {
 
 export default function App() {
   const [meters, setMeters] = useState<Meter[]>(INITIAL_METERS);
+  useEffect(() => {
+    setMeters(current => {
+      let changed = false;
+      const next = current.map(meter => {
+        const sourceReplacements: Record<string, string> = {
+          Starcom: "SmartCom",
+          Planter: "SmartCom II",
+          MODBUS: "BACNET_1",
+        };
+        let updated = sourceReplacements[meter.source]
+          ? { ...meter, source: sourceReplacements[meter.source], dataFormat: meter.source === "MODBUS" ? "BACnet/IP" : meter.dataFormat }
+          : meter;
+        if (meter.status === "Inactive") {
+          updated = { ...updated, status: "In progress", online: "Online" };
+        }
+        if (meter.edgeId === "EDGE-7410") {
+          updated = { ...updated, internalOnly: true };
+        }
+        if (meter.edgeId === "EDGE-3112") {
+          updated = {
+            ...updated,
+            source: "CAPTIS",
+            dataFormat: "Captis API",
+            cumulocityId: "12345678910",
+            apiParameter: "Pulse1_Total",
+          };
+        }
+        if (meter.edgeId === "EDGE-4120") {
+          updated = { ...updated, source: "NEM12", type: "Thermal", dataFormat: "NEM12", nmiSuffix: "E1" };
+        }
+        if (meter.source.toUpperCase() === "NEM12" && !["Electricity", "Thermal"].includes(meter.type)) {
+          updated = { ...updated, type: "Electricity" };
+        }
+        if (meter.edgeId === "EDGE-7522") {
+          updated = {
+            ...updated,
+            name: "Car park lighting",
+            type: "Electricity",
+            source: "Watt Watchers",
+            status: "Active",
+            dataFormat: "JSON",
+            ctRatio: "100:5",
+            pulseRatio: "1000 imp/kWh",
+            channels: "C1, C2, C3",
+            apiDeviceId: "DDA4108895928",
+            internalOnly: true,
+          };
+        }
+        const supplierName = supplierLabel(updated);
+        const hasBlankContact = updated.contactName === "—" || updated.contactEmail === "—" || updated.contactPhone === "—";
+        if (updated !== meter || updated.supplierName !== supplierName || hasBlankContact) {
+          changed = true;
+          return {
+            ...updated,
+            supplierName,
+            contactName: updated.contactName === "—" ? DUMMY_SUPPLIER_CONTACT.name : updated.contactName,
+            contactEmail: updated.contactEmail === "—" ? DUMMY_SUPPLIER_CONTACT.email : updated.contactEmail,
+            contactPhone: updated.contactPhone === "—" ? DUMMY_SUPPLIER_CONTACT.phone : updated.contactPhone,
+          };
+        }
+        return meter;
+      });
+      return changed ? next : current;
+    });
+  }, []);
   const [search, setSearch] = useState("");
   const [view, setView] = useState<View>("all");
   const [selected, setSelected] = useState<number[]>([]);
@@ -80,21 +265,57 @@ export default function App() {
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [activeTab, setActiveTab] = useState<Page>("devices");
-  const [reuploadView, setReuploadView] = useState<"new" | "history">("new");
+  const [reuploadView, setReuploadView] = useState<"new" | "history">("history");
   const [addDeviceOpen, setAddDeviceOpen] = useState(false);
-  const [bulkModal, setBulkModal] = useState<{
-    label: string;
-    field: "excluded" | "notifications";
-    value: string;
-  } | null>(null);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [savedNoticeId, setSavedNoticeId] = useState<number | null>(null);
+  const [bulkModal, setBulkModal] = useState<"critical" | "excluded" | "notifications" | null>(null);
+  const [bulkMenu, setBulkMenu] = useState<"critical" | "excluded" | "notifications" | null>(null);
   const [bulkFromDate, setBulkFromDate] = useState("");
   const [bulkToDate, setBulkToDate] = useState("");
+  const [bulkNoEnd, setBulkNoEnd] = useState(false);
   const [bulkReason, setBulkReason] = useState("");
   const [bulkComment, setBulkComment] = useState("");
+  const [bulkToast, setBulkToast] = useState<{ message: string; previous: Meter[] } | null>(null);
+  const bulkMenuRef = useRef<HTMLDivElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
+  const [pageSizeOpen, setPageSizeOpen] = useState(false);
   const [columnPanelOpen, setColumnPanelOpen] = useState(false);
-  const [visibleColumns, setVisibleColumns] = useState<SortKey[]>(ALL_COLUMN_KEYS);
+  const [visibleColumns, setVisibleColumns] = useState<SortKey[]>(
+    ALL_COLUMN_KEYS.filter(key => key !== "supplierName" && key !== "internalOnly")
+  );
   const [columnOrder, setColumnOrder] = useState<SortKey[]>(ALL_COLUMN_KEYS);
+  const [openColumnFilter, setOpenColumnFilter] = useState<SortKey | null>(null);
+  const [columnFilters, setColumnFilters] = useState<Partial<Record<SortKey, string[]>>>(() =>
+    Object.fromEntries(Object.entries(COLUMN_FILTERS).map(([key, options]) => [key, options!.map(option => option.value)]))
+  );
+  useEffect(() => {
+    setColumnFilters(current => ({
+      ...current,
+      source: COLUMN_FILTERS.source!.map(option => option.value),
+      status: (current.status ?? COLUMN_FILTERS.status!.map(option => option.value)).map(value => value === "Inactive" ? "In progress" : value),
+    }));
+  }, []);
+  const columnFilterRef = useRef<HTMLTableCellElement>(null);
+
+  useEffect(() => {
+    if (!bulkMenu) return;
+    function handle(event: PointerEvent) {
+      if (!bulkMenuRef.current?.contains(event.target as Node)) setBulkMenu(null);
+    }
+    document.addEventListener("pointerdown", handle);
+    return () => document.removeEventListener("pointerdown", handle);
+  }, [bulkMenu]);
+
+  useEffect(() => {
+    if (!openColumnFilter) return;
+    function handle(event: PointerEvent) {
+      if (!columnFilterRef.current?.contains(event.target as Node)) setOpenColumnFilter(null);
+    }
+    document.addEventListener("pointerdown", handle);
+    return () => document.removeEventListener("pointerdown", handle);
+  }, [openColumnFilter]);
 
   const filtered = meters.filter((m) => {
     const q = search.toLowerCase();
@@ -106,30 +327,48 @@ export default function App() {
       m.source.toLowerCase().includes(q);
     const matchView =
       view === "all" ||
-      (view === "online" && m.online === "Online") ||
-      (view === "offline" && m.online === "Offline") ||
+      (view === "online" && onlineValue(m) === "Online") ||
+      (view === "offline" && onlineValue(m) === "Offline") ||
       (view === "critical" && m.critical === "Yes") ||
       (view === "excluded" && m.excluded === "Yes");
-    return matchSearch && matchView;
+    const matchColumns = (Object.entries(COLUMN_FILTERS) as [SortKey, { label: string; value: string }[]][]).every(([key, options]) => {
+      const selected = columnFilters[key] ?? options.map(option => option.value);
+      if (selected.length === options.length) return true;
+      const value = key === "online" ? onlineValue(m) : key === "internalOnly" ? internalOnlyValue(m) : String(m[key]);
+      return selected.includes(value);
+    });
+    return matchSearch && matchView && matchColumns;
   }).sort((a, b) => {
     const av = a[sortKey] as string ?? "";
     const bv = b[sortKey] as string ?? "";
     return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
   });
 
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(currentPage, pageCount);
+  const pageRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
   const drawerMeter = drawerMeterId !== null ? meters.find(m => m.id === drawerMeterId) ?? null : null;
+  const filtersNarrowed = view !== "all" || (Object.entries(COLUMN_FILTERS) as [SortKey, { label: string; value: string }[]][]).some(([key, options]) => {
+    const selected = columnFilters[key] ?? options.map(option => option.value);
+    return selected.length !== options.length;
+  });
+
+  function clearFilters() {
+    setView("all");
+    setColumnFilters(Object.fromEntries(Object.entries(COLUMN_FILTERS).map(([key, options]) => [key, options!.map(option => option.value)])));
+    setOpenColumnFilter(null);
+  }
 
   function patchMeter(id: number, patch: Partial<Meter>) {
     setMeters(ms => ms.map(m => m.id === id ? { ...m, ...patch } : m));
   }
 
-  function addMeter(input: NewMeterInput) {
-    setMeters(current => {
-      const id = Math.max(...current.map(meter => meter.id), 0) + 1;
-      return [...current, {
+  function addMeter(input: NewMeterInput, notify = false) {
+    const id = Math.max(...meters.map(meter => meter.id), 0) + 1;
+    setMeters(current => [...current, {
         id,
         name: input.name,
-        edgeId: input.meterId,
+        edgeId: formatEdgeId(input.meterId),
         type: input.utility,
         source: input.source,
         status: "Active",
@@ -140,15 +379,19 @@ export default function App() {
         lastData: "No data",
         dataFormat: input.dataFormat,
         comAddress: "—",
-        contactName: "—",
-        contactEmail: "—",
-        contactPhone: "—",
+        contactName: input.contactName.trim() || DUMMY_SUPPLIER_CONTACT.name,
+        contactEmail: input.contactEmail.trim() || DUMMY_SUPPLIER_CONTACT.email,
+        contactPhone: input.contactPhone.trim() || DUMMY_SUPPLIER_CONTACT.phone,
+        supplierName: input.supplierName.trim() || "Unassigned",
+        internalOnly: input.internalOnly,
         nmiNo: input.nmiNo || "—",
         serialNo: input.serialNo || "000000000000",
         captisNumber: input.captisNumber || "—",
-      }];
-    });
+        cumulocityId: input.captisNumber || "—",
+        apiParameter: input.apiParameter || undefined,
+      }]);
     setAddDeviceOpen(false);
+    if (notify) setSavedNoticeId(id);
   }
 
   function toggleSort(key: SortKey) {
@@ -164,61 +407,120 @@ export default function App() {
     setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
   }
 
-  function openBulkModal(label: string, field: "excluded" | "notifications", value: string) {
-    setBulkModal({ label, field, value });
+  function openBulkModal(kind: "critical" | "excluded" | "notifications") {
+    setBulkMenu(null);
+    setBulkModal(kind);
     setBulkFromDate("");
     setBulkToDate("");
+    setBulkNoEnd(false);
     setBulkReason("");
     setBulkComment("");
   }
 
-  function applyBulk() {
-    if (!bulkModal) return;
-    const patch: Partial<Meter> = bulkModal.field === "excluded"
-      ? {
-          excluded: bulkModal.value,
-          excludedFrom: bulkFromDate,
-          excludedTo: bulkToDate,
-          excludedReason: bulkReason,
-        }
-      : {
-          notifications: bulkModal.value,
-          notificationComment: bulkComment,
-        };
-    setMeters(ms => ms.map(m => selected.includes(m.id) ? { ...m, ...patch } : m));
+  function applyBulkChange(patch: Partial<Meter>, message: string) {
+    const previous = meters.filter(meter => selected.includes(meter.id)).map(meter => ({ ...meter }));
+    setMeters(current => current.map(meter => selected.includes(meter.id) ? { ...meter, ...patch } : meter));
+    setBulkToast({ message, previous });
     setBulkModal(null);
+    setBulkMenu(null);
+  }
+
+  function applyBulk() {
+    if (!bulkModal || !bulkModalValid) return;
+    if (bulkModal === "critical") {
+      applyBulkChange({ critical: "Yes", criticalReason: bulkReason }, "Critical status saved");
+    } else if (bulkModal === "excluded") {
+      applyBulkChange({
+        excluded: "Yes",
+        excludedFrom: bulkFromDate,
+        excludedTo: bulkNoEnd ? "" : bulkToDate,
+        excludedNoEndDate: bulkNoEnd,
+        excludedReason: bulkReason,
+      }, "Exclusions saved");
+    } else {
+      applyBulkChange({ notifications: "Disabled", notificationComment: bulkComment }, "Notifications disabled");
+    }
   }
 
   const selectedMeters = meters.filter(m => selected.includes(m.id));
-  const anyExcluded = selectedMeters.some(m => m.excluded === "Yes");
-  const allExcluded = selectedMeters.length > 0 && selectedMeters.every(m => m.excluded === "Yes");
-  const allNotifEnabled = selectedMeters.length > 0 && selectedMeters.every(m => m.notifications === "Enabled");
-  const allNotifDisabled = selectedMeters.length > 0 && selectedMeters.every(m => m.notifications === "Disabled");
+  const criticalCount = selectedMeters.filter(meter => meter.critical === "Yes").length;
+  const excludedCount = selectedMeters.filter(meter => meter.excluded === "Yes").length;
+  const notificationsOn = selectedMeters.filter(meter => meter.notifications === "Enabled").length;
+  const oneDevice = selected.length === 1;
+  const deviceWord = oneDevice ? "device" : "devices";
+  const bulkControls: Array<
+    | { type: "button"; key: string; label: string; onClick: () => void }
+    | { type: "menu"; key: "critical" | "excluded" | "notifications"; label: string; items: { label: string; onClick: () => void }[] }
+  > = [
+    criticalCount > 0 && criticalCount < selected.length
+      ? {
+          type: "menu",
+          key: "critical",
+          label: "Critical",
+          items: [
+            { label: `Mark critical (${selected.length - criticalCount})`, onClick: () => openBulkModal("critical") },
+            { label: `Remove critical (${criticalCount})`, onClick: () => applyBulkChange({ critical: "No", criticalReason: "" }, "Critical status removed") },
+          ],
+        }
+      : criticalCount < selected.length
+        ? { type: "button", key: "critical", label: "Mark as critical", onClick: () => openBulkModal("critical") }
+        : { type: "button", key: "critical", label: "Remove critical", onClick: () => applyBulkChange({ critical: "No", criticalReason: "" }, "Critical status removed") },
+    excludedCount > 0 && excludedCount < selected.length
+      ? {
+          type: "menu",
+          key: "excluded",
+          label: "Exclude",
+          items: [
+            { label: `Exclude devices (${selected.length - excludedCount})`, onClick: () => openBulkModal("excluded") },
+            { label: `Include devices (${excludedCount})`, onClick: () => applyBulkChange({ excluded: "No", excludedFrom: "", excludedTo: "", excludedReason: "" }, "Exclusion removed") },
+          ],
+        }
+      : excludedCount < selected.length
+        ? { type: "button", key: "excluded", label: oneDevice ? "Exclude device" : "Exclude devices", onClick: () => openBulkModal("excluded") }
+        : { type: "button", key: "excluded", label: oneDevice ? "Include device" : "Include devices", onClick: () => applyBulkChange({ excluded: "No", excludedFrom: "", excludedTo: "", excludedReason: "" }, "Exclusion removed") },
+    notificationsOn > 0 && notificationsOn < selected.length
+      ? {
+          type: "menu",
+          key: "notifications",
+          label: "Notifications",
+          items: [
+            { label: `Disable notifications (${notificationsOn})`, onClick: () => openBulkModal("notifications") },
+            { label: `Enable notifications (${selected.length - notificationsOn})`, onClick: () => applyBulkChange({ notifications: "Enabled", notificationComment: "" }, "Notifications enabled") },
+          ],
+        }
+      : notificationsOn === selected.length
+        ? { type: "button", key: "notifications", label: oneDevice ? "Disable notification" : "Disable notifications", onClick: () => openBulkModal("notifications") }
+        : { type: "button", key: "notifications", label: oneDevice ? "Enable notification" : "Enable notifications", onClick: () => applyBulkChange({ notifications: "Enabled", notificationComment: "" }, "Notifications enabled") },
+  ];
 
-  const bulkActions: { label: string; action: () => void }[] = [];
-  if (!allExcluded) bulkActions.push({ label: "Mark as excluded", action: () => openBulkModal("Mark as excluded", "excluded", "Yes") });
-  if (anyExcluded) bulkActions.push({ label: "Remove from excluded", action: () => openBulkModal("Remove from excluded", "excluded", "No") });
-  if (!allNotifEnabled) bulkActions.push({ label: "Enable notifications", action: () => openBulkModal("Enable notifications", "notifications", "Enabled") });
-  if (!allNotifDisabled) bulkActions.push({ label: "Disable notifications", action: () => openBulkModal("Disable notifications", "notifications", "Disabled") });
-
-  const bulkModalValid = bulkModal?.field === "excluded"
-    ? Boolean(bulkFromDate && bulkToDate && bulkReason)
-    : Boolean(bulkComment);
+  const bulkModalValid = bulkModal === "critical"
+    ? Boolean(bulkReason)
+    : bulkModal === "excluded"
+      ? Boolean(bulkFromDate && bulkReason && (bulkNoEnd || bulkToDate))
+      : Boolean(bulkComment);
+  const bulkModalDirty = Boolean(bulkFromDate || bulkToDate || bulkNoEnd || bulkReason || bulkComment);
 
   const COLS: { key: SortKey; label: string }[] = [
-    { key: "name", label: "Device Name" },
-    { key: "edgeId", label: "EDGE Device ID" },
+    { key: "name", label: "Device name" },
+    { key: "edgeId", label: "Edge Device ID" },
     { key: "type", label: "Device Type" },
     { key: "source", label: "Data Source" },
+    { key: "supplierName", label: "Supplier" },
     { key: "online", label: "Online" },
-    { key: "status", label: "Commissioning status" },
+    { key: "internalOnly", label: "Internal only" },
+    { key: "status", label: "Under comm." },
     { key: "critical", label: "Critical" },
     { key: "excluded", label: "Excluded" },
-    { key: "notifications", label: "Notif." },
+    { key: "notifications", label: "Notification" },
   ];
-  const visibleCols = columnOrder
+  const shownColumns = withMissingColumns(columnOrder, visibleColumns);
+  useEffect(() => {
+    if (shownColumns.order.length !== columnOrder.length) setColumnOrder(shownColumns.order);
+    if (shownColumns.visible.length !== visibleColumns.length) setVisibleColumns(shownColumns.visible);
+  }, [shownColumns, columnOrder, visibleColumns]);
+  const visibleCols = shownColumns.order
     .map(key => COLS.find(column => column.key === key))
-    .filter((column): column is { key: SortKey; label: string } => Boolean(column) && visibleColumns.includes(column!.key));
+    .filter((column): column is { key: SortKey; label: string } => Boolean(column) && shownColumns.visible.includes(column!.key));
 
   function toggleColumn(key: SortKey) {
     if (key === "name") return;
@@ -227,13 +529,16 @@ export default function App() {
       : [...current, key]);
   }
 
-  function reorderColumn(dragged: SortKey, target: SortKey) {
-    if (dragged === target || dragged === "name") return;
+  function reorderColumn(dragged: SortKey, target: SortKey, place: "before" | "after" = "before") {
+    if (dragged === target || dragged === "name" || target === "name") return;
     setColumnOrder(current => {
       const next = current.filter(key => key !== dragged);
-      const targetIndex = next.indexOf(target);
-      next.splice(Math.max(targetIndex, 1), 0, dragged);
-      return next;
+      let index = next.indexOf(target);
+      if (index < 0) return current;
+      if (place === "after") index += 1;
+      index = Math.max(index, 1);
+      next.splice(index, 0, dragged);
+      return next.every((key, itemIndex) => key === current[itemIndex]) ? current : next;
     });
   }
 
@@ -252,23 +557,29 @@ export default function App() {
             <span>{meter.name}</span>
           </div>
         );
-      case "online":
+      case "online": {
+        const online = onlineValue(meter);
         return (
-          <span className={`epx-online-status ${meter.online === "Online" ? "is-online" : "is-offline"}`}>
+          <span className={`epx-online-status ${online === "Online" ? "is-online" : "is-offline"}`}>
             <img
-              src={meter.online === "Online"
+              src={online === "Online"
                 ? "/assets/device-management/2699a.svg"
                 : "/assets/device-management/ba735.svg"}
               alt=""
             />
-            {meter.online}
+            {online}
           </span>
         );
+      }
+      case "internalOnly":
+        return internalOnlyValue(meter) === "Yes" ? "Yes" : <span className="epx-empty-value">–</span>;
+      case "supplierName":
+        return meter.supplierName || "—";
       case "status":
-        return meter.status === "Inactive" ? (
+        return meter.status === "In progress" || meter.status === "Inactive" ? (
           <span className="epx-inline-state is-inactive">
-            <img src="/assets/device-management/d1332.svg" alt="" />
-            Inactive
+            <img src="/assets/device-management/hourglass.svg" alt="" />
+            In progress
           </span>
         ) : <span className="epx-empty-value">–</span>;
       case "critical":
@@ -281,7 +592,7 @@ export default function App() {
       case "excluded":
         return meter.excluded === "Yes" ? (
           <span className="epx-inline-state is-excluded">
-            <img src="/assets/device-management/ae471.svg" alt="" />
+            <img src="/assets/device-management/remove-circle.svg" alt="" />
             Excluded
           </span>
         ) : <span className="epx-empty-value">–</span>;
@@ -293,7 +604,7 @@ export default function App() {
           </span>
         ) : <span className="epx-empty-value">–</span>;
       default:
-        return String(meter[key] ?? "–");
+        return key === "edgeId" ? formatEdgeId(String(meter.edgeId ?? "–")) : String(meter[key] ?? "–");
     }
   }
   const pageDetails: Record<Page, { title: string; description: string }> = {
@@ -306,8 +617,8 @@ export default function App() {
       description: "Manage operational data workflows across the portfolio.",
     },
     reupload: {
-      title: "NEM12 data re-upload",
-      description: "Reprocess historical NEM12 data for selected devices.",
+      title: "NEM12 Data reupload",
+      description: "Reprocess historical NEM12 data for selected devices",
     },
     "nem12-log": {
       title: "NEM12 data log",
@@ -320,6 +631,29 @@ export default function App() {
   };
   const activePageDetails = pageDetails[activeTab];
 
+  function exportDevices(fields: ExportFieldKey[]) {
+    const labels = Object.fromEntries([...DEFAULT_EXPORT_FIELDS, ...OPTIONAL_EXPORT_FIELDS].map(field => [field.key, field.label]));
+    const valueFor = (meter: Meter, field: ExportFieldKey) => {
+      if (field === "online") return onlineValue(meter);
+      if (field === "status") return meter.status === "Inactive" ? "In progress" : meter.status;
+      if (field === "baudRate") return meter.baudRate ?? "—";
+      if (field === "inputNumber") return meter.inputNumber ?? "—";
+      return String(meter[field as keyof Meter] ?? "—");
+    };
+    const headers = fields.map(field => labels[field]);
+    const rows = filtered.map(meter => fields.map(field => valueFor(meter, field)));
+    const csv = [headers, ...rows]
+      .map(row => row.map(cell => `"${String(cell).replaceAll('"', '""')}"`).join(","))
+      .join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "devices.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+    setExportDialogOpen(false);
+  }
+
   return (
     <div className="epx-app min-h-screen bg-white text-black flex">
       <Sidebar
@@ -331,8 +665,8 @@ export default function App() {
         }}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="epx-page-header flex items-center justify-between gap-6 border-b border-black px-6 pb-4 pt-5">
+      <div className="epx-main flex min-w-0 flex-1 flex-col overflow-hidden">
+        <header className={`epx-page-header flex items-center justify-between gap-6 border-b border-black px-6 pb-4 pt-5${activeTab === "reupload" ? " is-reupload" : ""}`}>
           <div>
             <div className="page-heading-title">
               {activePageDetails.title}
@@ -342,21 +676,35 @@ export default function App() {
             </div>
           </div>
           {activeTab === "devices" && (
+            <div className="epx-header-actions">
+              <button type="button" className="epx-export-button" aria-label="Export devices" onClick={() => setExportDialogOpen(true)}>
+                <img src="/assets/device-management/export.svg" alt="" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddDeviceOpen(true)}
+                className="epx-primary-button"
+              >
+                Add device
+              </button>
+            </div>
+          )}
+          {activeTab === "reupload" && reuploadView === "history" && (
             <button
               type="button"
-              onClick={() => setAddDeviceOpen(true)}
+              onClick={() => setReuploadView("new")}
               className="epx-primary-button"
             >
-              Add device
+              New request
             </button>
           )}
         </header>
 
         {activeTab === "devices" ? (
-          <div className="flex flex-1 overflow-hidden">
+          <div className="flex min-h-0 flex-1 overflow-hidden">
 
         {/* Main content */}
-          <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
 
           {/* Stat cards */}
           <div className="epx-stat-grid flex gap-0 border-b border-black">
@@ -379,7 +727,7 @@ export default function App() {
           </div>
 
           {/* Search */}
-          <div className="epx-toolbar border-b border-black px-4 py-3">
+          <div className="epx-toolbar border-b border-black">
             <div className="flex items-center border border-black">
               <span className="epx-search-icon" aria-hidden="true">
                 <img src="/assets/device-management/bf431.svg" alt="" />
@@ -396,50 +744,86 @@ export default function App() {
             </div>
           </div>
 
-          {/* Bulk actions */}
-          {selected.length > 0 && (
-            <div className="border-b border-black bg-gray-50 px-4 py-2 flex items-center gap-3 flex-wrap">
-              <span className="text-xs font-bold tabular-nums">{selected.length} selected</span>
-              <div className="w-px h-4 bg-gray-400 flex-shrink-0" />
-              {bulkActions.map(({ label, action }) => (
-                <button
-                  key={label}
-                  onClick={action}
-                  className="text-xs border border-black px-3 py-1 hover:bg-black hover:text-white transition-colors whitespace-nowrap"
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-
           {/* Table */}
           <div className="epx-table-wrap flex min-h-0 flex-1 flex-col">
-            <div className="epx-table-header">
-              <span>229 Devices</span>
+            <div className={`epx-table-header${selected.length > 0 ? " is-bulk-editing" : ""}`}>
+              <div className="epx-table-summary">
+                <span>
+                  {filtersNarrowed || search ? filtered.length : 229} {(filtersNarrowed || search) && filtered.length === 1 ? "Device" : "Devices"}
+                </span>
+                {selected.length > 0 && (
+                  <div className="epx-bulk-bar" ref={bulkMenuRef}>
+                    <span className="epx-bulk-divider" />
+                    <button type="button" className="epx-bulk-clear" onClick={() => setSelected([])}>
+                      {selected.length} selected
+                      <img src="/assets/bulk-edit/close.svg" alt="" />
+                    </button>
+                    {bulkControls.map(control => control.type === "button" ? (
+                      <button type="button" key={control.key} onClick={control.onClick}>{control.label}</button>
+                    ) : (
+                      <div className="epx-bulk-menu" key={control.key}>
+                        <button
+                          type="button"
+                          aria-expanded={bulkMenu === control.key}
+                          aria-haspopup="menu"
+                          onClick={() => setBulkMenu(current => current === control.key ? null : control.key)}
+                        >
+                          {control.label}
+                          <img src="/assets/bulk/expand.svg" alt="" className={bulkMenu === control.key ? "is-open" : ""} />
+                        </button>
+                        {bulkMenu === control.key && (
+                          <div role="menu">
+                            {control.items.map(item => (
+                              <button type="button" key={item.label} role="menuitem" onClick={item.onClick}>
+                                {item.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {filtersNarrowed && selected.length === 0 && (
+                  <button type="button" className="epx-clear-filters" onClick={clearFilters}>
+                    Clear filters
+                  </button>
+                )}
+              </div>
               <div className="epx-table-actions">
                 <button
                   type="button"
                   aria-label="Choose visible columns"
                   aria-expanded={columnPanelOpen}
-                  onClick={() => setColumnPanelOpen(true)}
+                  onClick={() => {
+                    setDrawerMeterId(null);
+                    setColumnPanelOpen(true);
+                  }}
                 >
-                  <img src="/assets/device-management/ae388.svg" alt="" />
+                  <img src="/assets/bulk-edit/view-column.svg" alt="" />
                   Column Views
                 </button>
               </div>
             </div>
             <div className="epx-table-scroll-shell">
               <div className="epx-table-scroll">
-              <table className="epx-device-table w-full border-collapse">
+              <table className="epx-device-table w-full">
               <thead>
                 <tr>
-                  {visibleCols.map(col => (
+                  {visibleCols.map(col => {
+                    const filterOptions = COLUMN_FILTERS[col.key];
+                    const selectedValues = columnFilters[col.key] ?? filterOptions?.map(option => option.value) ?? [];
+                    const allSelected = Boolean(filterOptions && selectedValues.length === filterOptions.length);
+                    return (
                     <th
                       key={col.key}
+                      ref={openColumnFilter === col.key ? columnFilterRef : undefined}
                       data-column={col.key}
-                      className="cursor-pointer select-none whitespace-nowrap"
-                      onClick={() => toggleSort(col.key)}
+                      className={`cursor-pointer select-none whitespace-nowrap${filterOptions && !allSelected ? " is-filtered" : ""}`}
+                      onClick={() => {
+                        if (!filterOptions) toggleSort(col.key);
+                        else setOpenColumnFilter(current => current === col.key ? null : col.key);
+                      }}
                     >
                       <span className="epx-column-heading">
                         {col.key === "name" && (
@@ -455,30 +839,78 @@ export default function App() {
                           />
                         )}
                         {col.label}
-                        {["online", "status", "excluded"].includes(col.key) && (
-                          <img src="/assets/device-management/c18e2.svg" alt="" />
+                        {HEADER_TOOLTIPS[col.key] && (
+                          <HeaderTooltip title={HEADER_TOOLTIPS[col.key]!.title} body={HEADER_TOOLTIPS[col.key]!.body}>
+                            <img src="/assets/device-management/c18e2.svg" alt="" />
+                          </HeaderTooltip>
                         )}
-                        <img
-                          src={col.key === "online"
-                            ? "/assets/device-management/dc60a.svg"
-                            : "/assets/device-management/64bff.svg"}
-                          alt={sortKey === col.key ? `Sorted ${sortDir}ending` : ""}
-                          className={sortKey === col.key && sortDir === "desc" ? "is-descending" : ""}
-                        />
+                        {col.key !== "name" && col.key !== "edgeId" && (
+                          <img
+                            src={col.key === "online"
+                              ? "/assets/device-management/dc60a.svg"
+                              : "/assets/device-management/64bff.svg"}
+                            alt={sortKey === col.key ? `Sorted ${sortDir}ending` : ""}
+                            className={sortKey === col.key && sortDir === "desc" ? "is-descending" : ""}
+                          />
+                        )}
                       </span>
+                      {filterOptions && openColumnFilter === col.key && (
+                        <div
+                          className="epx-column-filter"
+                          ref={columnFilterRef}
+                          onClick={event => event.stopPropagation()}
+                          onPointerDown={event => event.stopPropagation()}
+                        >
+                          <div className="epx-column-filter-title">Filter</div>
+                          <label>
+                            <input
+                              type="checkbox"
+                              checked={allSelected}
+                              ref={input => {
+                                if (input) input.indeterminate = !allSelected && selectedValues.length > 0;
+                              }}
+                              onChange={() => setColumnFilters(current => ({
+                                ...current,
+                                [col.key]: allSelected ? [] : filterOptions.map(option => option.value),
+                              }))}
+                            />
+                            Select all
+                          </label>
+                          {filterOptions.map(option => (
+                            <label key={option.value}>
+                              <input
+                                type="checkbox"
+                                checked={selectedValues.includes(option.value)}
+                                onChange={() => setColumnFilters(current => {
+                                  const currentValues = current[col.key] ?? filterOptions.map(item => item.value);
+                                  const next = currentValues.includes(option.value)
+                                    ? currentValues.filter(item => item !== option.value)
+                                    : [...currentValues, option.value];
+                                  return { ...current, [col.key]: next };
+                                })}
+                              />
+                              {option.label}
+                            </label>
+                          ))}
+                        </div>
+                      )}
                     </th>
-                  ))}
+                  );
+                  })}
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((m) => {
+                {pageRows.map((m) => {
                   const isSelected = selected.includes(m.id);
                   const isActive = drawerMeterId === m.id;
                   return (
                     <tr
                       key={m.id}
                       className={`cursor-pointer ${isActive ? "is-active" : ""} ${isSelected ? "is-selected" : ""}`}
-                      onClick={() => setDrawerMeterId(isActive ? null : m.id)}
+                      onClick={() => {
+                        setColumnPanelOpen(false);
+                        setDrawerMeterId(isActive ? null : m.id);
+                      }}
                     >
                       {visibleCols.map(column => (
                         <td key={column.key} data-column={column.key}>
@@ -498,48 +930,50 @@ export default function App() {
               </tbody>
               </table>
               </div>
-              <button
-                type="button"
-                className="epx-table-scroll-button"
-                aria-label="Scroll table right"
-                onClick={event => (event.currentTarget.previousElementSibling as HTMLElement | null)?.scrollBy({ left: 400, behavior: "smooth" })}
-              >
-                <img src="/assets/device-management/a23c4.svg" alt="" />
-              </button>
             </div>
             <div className="epx-table-footer">
-              <div className="epx-results-per-page">
-                <button type="button">
-                  12
+              <div className="epx-results-per-page epx-page-size">
+                <button
+                  type="button"
+                  aria-expanded={pageSizeOpen}
+                  onClick={() => setPageSizeOpen(open => !open)}
+                >
+                  {pageSize}
                   <img src="/assets/device-management/3c143.svg" alt="" />
                 </button>
+                {pageSizeOpen && (
+                  <div className="epx-filter-menu is-compact">
+                    {[12, 24, 48].map(size => (
+                      <button
+                        key={size}
+                        type="button"
+                        onClick={() => {
+                          setPageSize(size);
+                          setCurrentPage(1);
+                          setPageSizeOpen(false);
+                        }}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <span>Results per page</span>
               </div>
               <nav className="epx-pagination" aria-label="Device table pagination">
                 <button
                   type="button"
                   aria-label="Previous page"
-                  disabled={currentPage === 1}
+                  disabled={safePage === 1}
                   onClick={() => setCurrentPage(page => Math.max(1, page - 1))}
                 >
                   <img src="/assets/device-management/a90a9.svg" alt="" />
                 </button>
-                {[1, 2, 3].map(page => (
+                {Array.from({ length: pageCount }, (_, index) => index + 1).map(page => (
                   <button
                     type="button"
                     key={page}
-                    aria-current={currentPage === page ? "page" : undefined}
-                    onClick={() => setCurrentPage(page)}
-                  >
-                    {page}
-                  </button>
-                ))}
-                <span>…</span>
-                {[8, 9, 10].map(page => (
-                  <button
-                    type="button"
-                    key={page}
-                    aria-current={currentPage === page ? "page" : undefined}
+                    aria-current={safePage === page ? "page" : undefined}
                     onClick={() => setCurrentPage(page)}
                   >
                     {page}
@@ -548,8 +982,8 @@ export default function App() {
                 <button
                   type="button"
                   aria-label="Next page"
-                  disabled={currentPage === 10}
-                  onClick={() => setCurrentPage(page => Math.min(10, page + 1))}
+                  disabled={safePage === pageCount}
+                  onClick={() => setCurrentPage(page => Math.min(pageCount, page + 1))}
                 >
                   <img src="/assets/device-management/58a6c.svg" alt="" />
                 </button>
@@ -583,94 +1017,97 @@ export default function App() {
 
       {bulkModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="epx-add-device-backdrop"
           role="dialog"
           aria-modal="true"
           aria-labelledby="bulk-action-title"
+          onPointerDown={event => {
+            if (event.target === event.currentTarget && !bulkModalDirty) setBulkModal(null);
+          }}
         >
-          <div className="w-full max-w-md border-2 border-black bg-white">
-            <div className="border-b border-black px-5 py-4">
-              <div id="bulk-action-title" className="text-sm font-bold uppercase tracking-wide">
-                {bulkModal.label}
+          <div className="epx-reconfig-dialog epx-bulk-dialog">
+            <div className="epx-add-device-header">
+              <div>
+                <div id="bulk-action-title">
+                  {bulkModal === "critical" ? "Mark critical" : bulkModal === "excluded" ? "Exclude devices" : "Disable notifications"}
+                </div>
               </div>
-              <div className="mt-1 text-xs text-gray-500">{selected.length} devices selected</div>
+              <button type="button" onClick={() => setBulkModal(null)} aria-label="Close">
+                <img src="/assets/add-device/7bf08.svg" alt="" />
+              </button>
             </div>
-            <div className="flex flex-col gap-3 px-5 py-4">
-              {bulkModal.field === "excluded" ? (
-                <>
-                  <div className="grid grid-cols-2 gap-3">
-                    <FieldLabel text="From date">
-                      <input
-                        type="date"
-                        value={bulkFromDate}
-                        onChange={event => setBulkFromDate(event.target.value)}
-                        className="w-full border border-gray-400 bg-white px-2 py-1.5 text-xs normal-case tracking-normal outline-none focus:border-black"
-                      />
-                    </FieldLabel>
-                    <FieldLabel text="To date">
-                      <input
-                        type="date"
-                        value={bulkToDate}
-                        onChange={event => setBulkToDate(event.target.value)}
-                        className="w-full border border-gray-400 bg-white px-2 py-1.5 text-xs normal-case tracking-normal outline-none focus:border-black"
-                      />
-                    </FieldLabel>
-                  </div>
-                  <FieldLabel text="Reason">
-                    <select
-                      value={bulkReason}
-                      onChange={event => setBulkReason(event.target.value)}
-                      className="w-full border border-gray-400 bg-white px-2 py-1.5 text-xs normal-case tracking-normal outline-none focus:border-black"
-                    >
-                      <option value="">Select reason</option>
-                      <option>Planned maintenance</option>
-                      <option>Fault investigation</option>
-                      <option>Decommissioned</option>
-                      <option>Other</option>
-                    </select>
-                  </FieldLabel>
-                </>
-              ) : (
-                <FieldLabel text="Comment">
+            <div className="epx-reconfig-body">
+              <p className="epx-bulk-copy">
+                {bulkModal === "critical" && `Mark ${selected.length} selected ${deviceWord} as critical for priority monitoring`}
+                {bulkModal === "excluded" && `Exclude ${selected.length} selected ${deviceWord} from automated monitoring, missing data checks and SLA reporting`}
+                {bulkModal === "notifications" && `Disable notification${selected.length === 1 ? "" : "s"} for ${selected.length} selected ${deviceWord}. Suppliers will no longer receive automated notifications for missing data affecting these devices.`}
+              </p>
+              {bulkModal === "critical" && (
+                <SettingSelect
+                  label="Reason"
+                  value={bulkReason}
+                  placeholder="Select reason"
+                  options={CRITICAL_REASONS}
+                  onChange={setBulkReason}
+                />
+              )}
+              {bulkModal === "excluded" && (
+                <div className="epx-bulk-exclude">
+                  <DateRangeField from={bulkFromDate} to={bulkToDate} toDisabled={bulkNoEnd} onFromChange={setBulkFromDate} onToChange={setBulkToDate} />
+                  <label className="epx-add-device-check">
+                    <input type="checkbox" checked={bulkNoEnd} onChange={event => setBulkNoEnd(event.target.checked)} />
+                    No end date
+                  </label>
+                  <SettingSelect
+                    label="Reason"
+                    value={bulkReason}
+                    placeholder="Select reason"
+                    options={EXCLUDE_REASONS}
+                    onChange={setBulkReason}
+                  />
+                </div>
+              )}
+              {bulkModal === "notifications" && (
+                <label className="epx-add-device-field">
+                  <span>Comment</span>
                   <textarea
                     value={bulkComment}
                     onChange={event => setBulkComment(event.target.value)}
                     rows={4}
-                    placeholder="Add a comment for this notification change"
-                    className="w-full resize-none border border-gray-400 bg-white px-2 py-1.5 text-xs normal-case tracking-normal outline-none placeholder:text-gray-400 focus:border-black"
+                    placeholder="Why are notifications being disabled?"
                   />
-                </FieldLabel>
+                </label>
               )}
             </div>
-            <div className="flex justify-end gap-2 border-t border-black px-5 py-3">
-              <button
-                type="button"
-                onClick={() => setBulkModal(null)}
-                className="border border-gray-400 px-3 py-1.5 text-xs hover:border-black"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={applyBulk}
-                disabled={!bulkModalValid}
-                className="border border-black bg-black px-3 py-1.5 text-xs text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-200 disabled:text-gray-400"
-              >
-                Apply to {selected.length} devices
-              </button>
+            <div className="epx-add-device-footer">
+              <button type="button" onClick={() => setBulkModal(null)}>Cancel</button>
+              <button type="button" className="is-primary" disabled={!bulkModalValid} onClick={applyBulk}>Save</button>
             </div>
           </div>
         </div>
       )}
 
+      {bulkToast && (
+        <SavedToast
+          message={bulkToast.message}
+          onUndo={() => {
+            const previous = bulkToast.previous;
+            setMeters(current => current.map(meter => previous.find(item => item.id === meter.id) ?? meter));
+            setBulkToast(null);
+          }}
+          onClose={() => setBulkToast(null)}
+        />
+      )}
+
       {columnPanelOpen && (
         <ColumnViewPanel
           columns={COLS}
-          visibleColumns={visibleColumns}
-          columnOrder={columnOrder}
+          visibleColumns={shownColumns.visible}
+          columnOrder={shownColumns.order}
           onClose={() => setColumnPanelOpen(false)}
           onToggleColumn={toggleColumn}
           onReorderColumn={reorderColumn}
+          onResetOrder={() => setColumnOrder(ALL_COLUMN_KEYS)}
         />
       )}
 
@@ -680,6 +1117,185 @@ export default function App() {
           onAdd={addMeter}
         />
       )}
+
+      {exportDialogOpen && (
+        <ExportDevicesDialog
+          onClose={() => setExportDialogOpen(false)}
+          onExport={exportDevices}
+        />
+      )}
+
+      {savedNoticeId !== null && (
+        <SavedToast
+          onUndo={() => {
+            setMeters(current => current.filter(meter => meter.id !== savedNoticeId));
+            setSavedNoticeId(null);
+          }}
+          onClose={() => setSavedNoticeId(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ExportDevicesDialog({
+  onClose,
+  onExport,
+}: {
+  onClose: () => void;
+  onExport: (fields: ExportFieldKey[]) => void;
+}) {
+  const [optionalOpen, setOptionalOpen] = useState(false);
+  const [selected, setSelected] = useState<ExportFieldKey[]>(DEFAULT_EXPORT_FIELDS.map(field => field.key));
+
+  useEffect(() => {
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
+  function toggleField(key: ExportFieldKey) {
+    setSelected(current => current.includes(key) ? current.filter(field => field !== key) : [...current, key]);
+  }
+
+  const optionalSelected = OPTIONAL_EXPORT_FIELDS.filter(field => selected.includes(field.key));
+  const allOptionalSelected = optionalSelected.length === OPTIONAL_EXPORT_FIELDS.length;
+  const selectionChanged = selected.length !== DEFAULT_EXPORT_FIELDS.length
+    || DEFAULT_EXPORT_FIELDS.some(field => !selected.includes(field.key));
+  const orderedSelection = [...DEFAULT_EXPORT_FIELDS, ...OPTIONAL_EXPORT_FIELDS]
+    .filter(field => selected.includes(field.key))
+    .map(field => field.key);
+
+  return (
+    <div
+      className="epx-add-device-backdrop epx-export-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="export-dialog-title"
+      onPointerDown={event => {
+        if (event.target === event.currentTarget && !selectionChanged) onClose();
+      }}
+    >
+      <div className="epx-export-dialog">
+        <header className="epx-export-dialog-header">
+          <div>
+            <h2 id="export-dialog-title">Export devices</h2>
+            <p>Choose which fields to include in your CSV export</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close export dialog">
+            <img src="/assets/export-dialog/close.svg" alt="" />
+          </button>
+        </header>
+
+        <div className="epx-export-dialog-body">
+          <section className="epx-export-section">
+            <h3>Default fields</h3>
+            <div className="epx-export-default-grid">
+              {DEFAULT_EXPORT_FIELDS.map(field => (
+                <label key={field.key} className={field.locked ? "is-locked" : ""}>
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(field.key)}
+                    disabled={field.locked}
+                    onChange={() => toggleField(field.key)}
+                  />
+                  <span>{field.label}</span>
+                </label>
+              ))}
+            </div>
+          </section>
+
+          <section className="epx-export-section epx-export-optional">
+            <button
+              type="button"
+              className="epx-export-section-toggle"
+              aria-expanded={optionalOpen}
+              onClick={() => setOptionalOpen(open => !open)}
+            >
+              <span>Optional fields</span>
+              <img src="/assets/export-dialog/expand-less.svg" alt="" className={optionalOpen ? "" : "is-collapsed"} />
+            </button>
+            {optionalOpen && (
+              <div className="epx-export-optional-content">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={allOptionalSelected}
+                            ref={input => {
+                              if (input) input.indeterminate = optionalSelected.length > 0 && !allOptionalSelected;
+                            }}
+                            onChange={() => {
+                              const keys = OPTIONAL_EXPORT_FIELDS.map(field => field.key);
+                              setSelected(current => allOptionalSelected
+                                ? current.filter(field => !keys.includes(field))
+                                : [...current.filter(field => !keys.includes(field)), ...keys]);
+                            }}
+                          />
+                          <span>Field</span>
+                        </label>
+                      </th>
+                      <th>
+                        <div className="epx-export-table-heading">
+                          <span>Edge meter</span>
+                          <img src="/assets/export-dialog/info.svg" alt="" title="Fields available for edge meters" />
+                        </div>
+                      </th>
+                      <th>
+                        <div className="epx-export-table-heading">
+                          <span>Third party<br />elect. meter</span>
+                          <img src="/assets/export-dialog/info-alt.svg" alt="" title="Fields available for third party electricity meters" />
+                        </div>
+                      </th>
+                      <th>
+                        <div className="epx-export-table-heading">
+                          <span>Meter<br />(pulse input)</span>
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {OPTIONAL_EXPORT_FIELDS.map(field => (
+                      <tr key={field.key}>
+                        <td>
+                          <label>
+                            <input
+                              type="checkbox"
+                              checked={selected.includes(field.key)}
+                              onChange={() => toggleField(field.key)}
+                            />
+                            <span>{field.label}</span>
+                          </label>
+                        </td>
+                        {field.compatibility.map((available, index) => (
+                          <td key={index}>
+                            {available
+                              ? <img src="/assets/export-dialog/check.svg" alt="Available" />
+                              : <span className="epx-export-unavailable">–</span>}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </div>
+
+        <footer className="epx-export-dialog-footer">
+          <span>{selected.length} fields selected</span>
+          <div>
+            <button type="button" onClick={onClose}>Cancel</button>
+            <button type="button" className="is-primary" onClick={() => onExport(orderedSelection)}>Export CSV</button>
+          </div>
+        </footer>
+      </div>
     </div>
   );
 }
@@ -691,36 +1307,118 @@ function ColumnViewPanel({
   onClose,
   onToggleColumn,
   onReorderColumn,
+  onResetOrder,
 }: {
   columns: { key: SortKey; label: string }[];
   visibleColumns: SortKey[];
   columnOrder: SortKey[];
   onClose: () => void;
   onToggleColumn: (key: SortKey) => void;
-  onReorderColumn: (dragged: SortKey, target: SortKey) => void;
+  onReorderColumn: (dragged: SortKey, target: SortKey, place: "before" | "after") => void;
+  onResetOrder: () => void;
 }) {
   const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
   const [draggedColumn, setDraggedColumn] = useState<SortKey | null>(null);
+  const [dragGhost, setDragGhost] = useState<{ top: number; left: number; width: number } | null>(null);
+  const reorderRef = useRef(onReorderColumn);
+  reorderRef.current = onReorderColumn;
   const groups = [
     {
-      id: "device-information",
-      label: "Device information",
-      columns: ["name", "edgeId", "type", "source"] as SortKey[],
+      id: "site-information",
+      label: "Site information",
+      columns: ["name", "edgeId", "type", "source", "supplierName"] as const,
     },
     {
       id: "device-status",
       label: "Device status",
-      columns: ["online", "status", "critical", "excluded", "notifications"] as SortKey[],
+      columns: ["online", "internalOnly", "status", "critical", "excluded", "notifications"] as const,
     },
   ];
-  const labelFor = (key: SortKey) => columns.find(column => column.key === key)?.label ?? key;
+  const panelLabels: Record<string, string> = {
+    name: "Device name",
+    edgeId: "Edge device ID",
+    type: "Device type",
+    source: "Data source",
+    supplierName: "Supplier",
+    online: "Online",
+    internalOnly: "Internal only",
+    status: "Under comm.",
+    critical: "Critical",
+    excluded: "Excluded",
+    notifications: "Notification",
+  };
+  const labelFor = (key: string) => panelLabels[key] ?? columns.find(column => column.key === key)?.label ?? key;
+  const isShown = (key: string) => visibleColumns.includes(key as SortKey);
   const visibleOrderedColumns = columnOrder.filter(key => visibleColumns.includes(key));
+  const orderChanged = columnOrder.length !== ALL_COLUMN_KEYS.length
+    || columnOrder.some((key, index) => key !== ALL_COLUMN_KEYS[index]);
 
   function toggleGroup(groupId: string) {
     setCollapsedGroups(current => current.includes(groupId)
       ? current.filter(id => id !== groupId)
       : [...current, groupId]);
   }
+
+  function startColumnDrag(event: React.PointerEvent<HTMLDivElement>, key: SortKey) {
+    if (key === "name" || event.button !== 0) return;
+    const row = event.currentTarget;
+    const rect = row.getBoundingClientRect();
+    const session = {
+      key,
+      startY: event.clientY,
+      offsetY: event.clientY - rect.top,
+      left: rect.left,
+      width: rect.width,
+      active: false,
+    };
+
+    function move(pointerEvent: PointerEvent) {
+      if (!session.active && Math.abs(pointerEvent.clientY - session.startY) < 4) return;
+      session.active = true;
+      setDraggedColumn(session.key);
+      setDragGhost({
+        top: pointerEvent.clientY - session.offsetY,
+        left: session.left,
+        width: session.width,
+      });
+      const targetRow = document.elementsFromPoint(pointerEvent.clientX, pointerEvent.clientY)
+        .filter(element => !element.closest(".epx-column-drag-ghost"))
+        .map(element => element.closest("[data-column-key]"))
+        .find((element): element is HTMLElement => Boolean(element));
+      const target = targetRow?.dataset.columnKey as SortKey | undefined;
+      if (!targetRow || !target || target === session.key || target === "name") return;
+      const targetRect = targetRow.getBoundingClientRect();
+      const place = pointerEvent.clientY < targetRect.top + targetRect.height / 2 ? "before" : "after";
+      reorderRef.current(session.key, target, place);
+    }
+
+    function end() {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      if (session.active) {
+        const swallow = (clickEvent: MouseEvent) => {
+          clickEvent.stopPropagation();
+          clickEvent.preventDefault();
+          window.removeEventListener("click", swallow, true);
+        };
+        window.addEventListener("click", swallow, true);
+      }
+      setDraggedColumn(null);
+      setDragGhost(null);
+    }
+
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+  }
+
+  useEffect(() => {
+    if (!draggedColumn) return;
+    const previous = document.body.style.cursor;
+    document.body.style.cursor = "grabbing";
+    return () => {
+      document.body.style.cursor = previous;
+    };
+  }, [draggedColumn]);
 
   return (
     <aside
@@ -743,26 +1441,24 @@ function ColumnViewPanel({
         <section className="epx-column-section">
           <div className="epx-column-section-heading">
             <span>Current view</span>
+            {orderChanged && (
+              <button type="button" className="epx-column-reset" onClick={onResetOrder}>
+                Reset
+              </button>
+            )}
             <span className="epx-column-count">{visibleOrderedColumns.length}</span>
           </div>
           <div className="epx-column-divider" />
           <div className="epx-current-columns">
-            {visibleOrderedColumns.map((key, index) => (
+            {visibleOrderedColumns.map(key => (
               <div
                 key={key}
-                className={`epx-column-item ${index === 0 ? "is-highlighted" : ""}`}
-                draggable={key !== "name"}
-                onDragStart={() => {
-                  setDraggedColumn(key);
-                }}
-                onDragEnd={() => setDraggedColumn(null)}
-                onDragOver={event => event.preventDefault()}
-                onDrop={() => {
-                  if (draggedColumn) onReorderColumn(draggedColumn, key);
-                  setDraggedColumn(null);
-                }}
+                data-column-key={key}
+                className={`epx-column-item ${key === "name" ? "is-highlighted" : ""} ${draggedColumn === key ? "is-dragging" : ""}`}
+                onPointerDown={event => startColumnDrag(event, key)}
+                onDragStart={event => event.preventDefault()}
               >
-                <img src="/assets/column-view/c1a46.svg" alt="" />
+                <img src="/assets/column-view/c1a46.svg" alt="" draggable={false} />
                 <span>{labelFor(key)}</span>
                 {key === "name" ? (
                   <img src="/assets/column-view/afd0e.svg" alt="Pinned" />
@@ -774,11 +1470,22 @@ function ColumnViewPanel({
               </div>
             ))}
           </div>
+          {draggedColumn && dragGhost && createPortal(
+            <div
+              className="epx-column-drag-ghost"
+              style={{ top: dragGhost.top, left: dragGhost.left, width: dragGhost.width }}
+            >
+              <img src="/assets/column-view/c1a46.svg" alt="" />
+              <span>{labelFor(draggedColumn)}</span>
+              <img src="/assets/column-view/4332c.svg" alt="" />
+            </div>,
+            document.body,
+          )}
         </section>
 
         {groups.map(group => {
           const isCollapsed = collapsedGroups.includes(group.id);
-          const visibleCount = group.columns.filter(key => visibleColumns.includes(key)).length;
+          const visibleCount = group.columns.filter(key => isShown(key)).length;
           return (
             <section className="epx-column-section" key={group.id}>
               <button
@@ -795,7 +1502,7 @@ function ColumnViewPanel({
               {!isCollapsed && (
                 <div className="epx-column-options">
                   {group.columns.map(key => {
-                    const isVisible = visibleColumns.includes(key);
+                    const isVisible = isShown(key);
                     return (
                       <div className="epx-column-option" key={key}>
                         <span>{labelFor(key)}</span>
@@ -830,28 +1537,95 @@ function ColumnViewPanel({
 
 function AddDeviceModal({ onClose, onAdd }: {
   onClose: () => void;
-  onAdd: (input: NewMeterInput) => void;
+  onAdd: (input: NewMeterInput, notify?: boolean) => void;
 }) {
   const [utility, setUtility] = useState("");
   const [meterName, setMeterName] = useState("");
   const [meterId, setMeterId] = useState("");
-  const [source, setSource] = useState<"" | "NEM12" | "Captis">("NEM12");
+  const [source, setSource] = useState<"" | "NEM12" | "Captis" | "Watt Watchers">("NEM12");
   const [dataFormat, setDataFormat] = useState("");
   const [nmiNo, setNmiNo] = useState("");
   const [serialNo, setSerialNo] = useState("");
   const [validFrom, setValidFrom] = useState("");
   const [captisId, setCaptisId] = useState("");
   const [apiIdentifier, setApiIdentifier] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [supplierName, setSupplierName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [multipleMeters, setMultipleMeters] = useState(false);
+  const [internalOnly, setInternalOnly] = useState(false);
+  const [utilityOpen, setUtilityOpen] = useState(false);
+  const [apiParameterOpen, setApiParameterOpen] = useState(false);
+  const [deviceIdOpen, setDeviceIdOpen] = useState(false);
+  const [deviceIdQuery, setDeviceIdQuery] = useState("");
+  const [confirmSave, setConfirmSave] = useState(false);
+  const utilityRef = useRef<HTMLLabelElement>(null);
+  const apiParameterRef = useRef<HTMLLabelElement>(null);
+  const deviceIdRef = useRef<HTMLLabelElement>(null);
+  const apiParameterOptions = ["Pulse1_Total", "Pulse2_Total"];
+  const utilityOptions = source === "NEM12"
+    ? ["Electricity", "Thermal"]
+    : ["Electricity", "Gas", "Water", "Thermal", "Analog", "Digital"];
+  const deviceIdOptions = Array.from({ length: 20 }, (_, index) => `PM-${String(index + 1).padStart(3, "0")}`);
+  const visibleDeviceIds = deviceIdOptions.filter(id => id.includes(deviceIdQuery.trim()));
 
+  useEffect(() => {
+    if (!utilityOpen && !deviceIdOpen && !apiParameterOpen) return;
+    function handle(event: PointerEvent) {
+      const target = event.target as Node;
+      if (utilityOpen && !utilityRef.current?.contains(target)) setUtilityOpen(false);
+      if (apiParameterOpen && !apiParameterRef.current?.contains(target)) setApiParameterOpen(false);
+      if (deviceIdOpen && !deviceIdRef.current?.contains(target)) {
+        setDeviceIdOpen(false);
+        setDeviceIdQuery("");
+      }
+    }
+    document.addEventListener("pointerdown", handle);
+    return () => document.removeEventListener("pointerdown", handle);
+  }, [utilityOpen, deviceIdOpen, apiParameterOpen]);
+
+  const detailsValid = Boolean(utility && meterName.trim() && meterId && validFrom);
   const sourceValid = source === "NEM12"
-    ? Boolean(nmiNo.length === 11 && serialNo.length === 12 && validFrom)
+    ? Boolean(nmiNo.trim() && serialNo.trim())
     : source === "Captis"
-      ? Boolean(captisId && apiIdentifier && dataFormat)
+      ? Boolean(captisId.trim() && apiIdentifier.trim())
       : false;
-  const saveValid = Boolean(utility && meterName && meterId && sourceValid);
+  const saveValid = detailsValid && sourceValid;
+  const hasChanges = Boolean(
+    utility || meterName || meterId || source !== "NEM12" || dataFormat || nmiNo || serialNo ||
+    validFrom || captisId || apiIdentifier || contactName || contactEmail || supplierName ||
+    contactPhone || multipleMeters || internalOnly || confirmSave
+  );
 
-  function handleSourceChange(next: "NEM12" | "Captis") {
+  function processDateLabel() {
+    if (!validFrom) return "DD-MM-YYYY";
+    const [year, month, day] = validFrom.split("-");
+    return `${day}-${month}-${year}`;
+  }
+
+  function submitDevice(notify = false) {
+    onAdd({
+      utility,
+      name: meterName,
+      meterId,
+      source,
+      dataFormat: source === "NEM12" ? "NEM12" : source === "Captis" ? "Captis API" : dataFormat,
+      nmiNo: source === "NEM12" ? nmiNo : "—",
+      serialNo: source === "NEM12" ? serialNo : "—",
+      captisNumber: source === "Captis" ? captisId : "—",
+      apiParameter: source === "Captis" ? apiIdentifier : "",
+      contactName,
+      contactEmail,
+      contactPhone,
+      supplierName,
+      internalOnly,
+    }, notify);
+  }
+
+  function handleSourceChange(next: "NEM12" | "Captis" | "Watt Watchers") {
     setSource(next);
+    if (next === "NEM12" && !["Electricity", "Thermal"].includes(utility)) setUtility("");
     setDataFormat("");
     setNmiNo(""); setSerialNo(""); setValidFrom("");
     setCaptisId(""); setApiIdentifier("");
@@ -863,57 +1637,31 @@ function AddDeviceModal({ onClose, onAdd }: {
       role="dialog"
       aria-modal="true"
       aria-labelledby="add-device-title"
+      onPointerDown={event => {
+        if (event.target === event.currentTarget && !hasChanges) onClose();
+      }}
     >
-      <div className="epx-add-device-dialog">
+      <div className={`epx-add-device-dialog${confirmSave ? " is-confirm" : ""}`}>
         <div className="epx-add-device-header">
-          <div id="add-device-title">Add device</div>
-          <button type="button" onClick={onClose} aria-label="Close">
+          <div>
+            <div id="add-device-title">Add device</div>
+            <p>Register a new device for this site</p>
+          </div>
+          <button type="button" onClick={confirmSave ? () => setConfirmSave(false) : onClose} aria-label="Close">
             <img src="/assets/add-device/7bf08.svg" alt="" />
           </button>
         </div>
 
+        {confirmSave ? (
+          <p className="epx-add-device-confirm">
+            The device will be added to this site. Would you like to fetch and process data from <strong>{processDateLabel()}</strong>?
+          </p>
+        ) : (
         <div className="epx-add-device-content">
-          <div className="epx-add-device-grid">
-            <label className="epx-add-device-field">
-              <span>Utility</span>
-              <span className="epx-add-device-select">
-                <select
-                  value={utility}
-                  onChange={e => setUtility(e.target.value)}
-                >
-                  <option value="">Select utility</option>
-                  <option>Electricity</option>
-                  <option>Water</option>
-                  <option>Gas</option>
-                  <option>Thermal</option>
-                  <option>Digital</option>
-                  <option>Analog</option>
-                </select>
-                <img src="/assets/add-device/988a8.svg" alt="" />
-              </span>
-            </label>
-            <label className="epx-add-device-field">
-              <span>Device Name</span>
-                <input
-                  value={meterName}
-                  onChange={e => setMeterName(e.target.value)}
-                  placeholder="Input name"
-                />
-            </label>
-            <label className="epx-add-device-field">
-              <span>Edge Device ID</span>
-                <input
-                  value={meterId}
-                  onChange={e => setMeterId(e.target.value)}
-                  placeholder="PM0001"
-                />
-            </label>
-          </div>
-
           <div className="epx-add-device-source">
             <span>Data source</span>
             <div>
-              {(["NEM12", "Captis"] as const).map(opt => (
+              {(["NEM12", "Captis", "Watt Watchers"] as const).map(opt => (
                 <button
                   type="button"
                   key={opt}
@@ -926,85 +1674,271 @@ function AddDeviceModal({ onClose, onAdd }: {
             </div>
           </div>
 
-          {source === "NEM12" && (
-            <div className="epx-add-device-grid">
-              <label className="epx-add-device-field">
-                <span>NMI number</span>
-                <input
-                  value={nmiNo}
-                  onChange={e => setNmiNo(e.target.value.replace(/\D/g, "").slice(0, 11))}
-                  inputMode="numeric"
-                  placeholder="11 digits"
-                />
-              </label>
-              <label className="epx-add-device-field">
-                <span>Serial number</span>
-                <input
-                  value={serialNo}
-                  onChange={e => setSerialNo(e.target.value.replace(/\D/g, "").slice(0, 12))}
-                  inputMode="numeric"
-                  placeholder="12 digits"
-                />
-              </label>
-              <label className="epx-add-device-field">
-                <span>Valid from</span>
-                <span className="epx-add-device-date">
-                  <input type="date" value={validFrom} onChange={e => setValidFrom(e.target.value)} />
-                  <img src="/assets/add-device/6396d.svg" alt="" />
-                </span>
-              </label>
+          {source === "Watt Watchers" ? (
+            <div className="epx-add-device-ww">
+              <p>WW devices are managed in a separate system. To continue, you'll need to create the WW device there first</p>
+              <button type="button">Go to WW Setup</button>
             </div>
-          )}
-
-          {source === "Captis" && (
-            <div className="epx-add-device-grid">
-              <label className="epx-add-device-field">
-                <span>Captis device ID</span>
-                <input value={captisId} onChange={e => setCaptisId(e.target.value)} placeholder="CAP-XXXXX" />
+          ) : (
+            <>
+              <section className="epx-add-device-step">
+                <h3>Step 1 — Device info</h3>
+                <div className="epx-add-device-step-body">
+              <div className="epx-add-device-grid">
+                <label className="epx-add-device-field" ref={utilityRef}>
+                  <span>Utility</span>
+                  <span className="epx-add-device-select">
+                    <button
+                      type="button"
+                      className={utility ? "" : "is-placeholder"}
+                      aria-expanded={utilityOpen}
+                      aria-haspopup="listbox"
+                      onClick={() => {
+                        setDeviceIdOpen(false);
+                        setApiParameterOpen(false);
+                        setUtilityOpen(current => !current);
+                      }}
+                    >
+                      {utility || "Select utility"}
+                    </button>
+                    <img src="/assets/add-device/988a8.svg" alt="" />
+                  </span>
+                  {utilityOpen && (
+                    <div className="epx-add-device-menu" role="listbox">
+                      {utilityOptions.map(option => (
+                        <button
+                          type="button"
+                          key={option}
+                          role="option"
+                          aria-selected={utility === option}
+                          onClick={() => {
+                            setUtility(option);
+                            setUtilityOpen(false);
+                          }}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </label>
+                <DateField label="Valid from" value={validFrom} onChange={setValidFrom} />
+              </div>
+              <div className="epx-add-device-grid">
+                <label className="epx-add-device-field">
+                  <span>Device Name</span>
+                  <input
+                    value={meterName}
+                    onChange={e => setMeterName(e.target.value)}
+                    placeholder="Input name"
+                  />
+                </label>
+                <label className="epx-add-device-field" ref={deviceIdRef}>
+                  <span>Edge Device ID</span>
+                  <span className="epx-add-device-select">
+                    <button
+                      type="button"
+                      className={meterId ? "" : "is-placeholder"}
+                      aria-expanded={deviceIdOpen}
+                      aria-haspopup="listbox"
+                      onClick={() => {
+                        setUtilityOpen(false);
+                        setApiParameterOpen(false);
+                        setDeviceIdOpen(current => !current);
+                      }}
+                    >
+                      {meterId || "Select Device ID"}
+                    </button>
+                    <img src="/assets/add-device/988a8.svg" alt="" />
+                  </span>
+                  {deviceIdOpen && (
+                    <div className="epx-device-id-menu" role="listbox">
+                      <label className="epx-device-id-search">
+                        <img src="/assets/device-management/bf431.svg" alt="" />
+                        <input
+                          value={deviceIdQuery}
+                          onChange={event => setDeviceIdQuery(event.target.value)}
+                          placeholder="Search number"
+                          aria-label="Search number"
+                        />
+                      </label>
+                      <div className="epx-device-id-options">
+                        {visibleDeviceIds.map(id => (
+                          <button
+                            type="button"
+                            key={id}
+                            role="option"
+                            aria-selected={meterId === id}
+                            onClick={() => {
+                              setMeterId(id);
+                              setDeviceIdOpen(false);
+                              setDeviceIdQuery("");
+                            }}
+                          >
+                            {id}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </label>
+              </div>
+              {source === "NEM12" ? (
+                <div className="epx-add-device-grid">
+                  <label className="epx-add-device-field">
+                    <span>NMI number</span>
+                    <input
+                      value={nmiNo}
+                      onChange={e => setNmiNo(e.target.value.replace(/\D/g, "").slice(0, 11))}
+                      inputMode="numeric"
+                      placeholder="Enter no."
+                    />
+                  </label>
+                  <label className="epx-add-device-field">
+                    <span>Serial number</span>
+                    <input
+                      value={serialNo}
+                      onChange={e => setSerialNo(e.target.value.replace(/\D/g, "").slice(0, 12))}
+                      inputMode="numeric"
+                      placeholder="Enter no."
+                    />
+                  </label>
+                </div>
+              ) : (
+                <div className="epx-add-device-grid">
+                  <label className="epx-add-device-field">
+                    <span>Captis device ID</span>
+                    <input value={captisId} onChange={e => setCaptisId(e.target.value)} placeholder="Enter no." />
+                  </label>
+                  <label className="epx-add-device-field" ref={apiParameterRef}>
+                    <span>API parameter</span>
+                    <span className="epx-add-device-select">
+                      <button
+                        type="button"
+                        className={apiIdentifier ? "" : "is-placeholder"}
+                        aria-expanded={apiParameterOpen}
+                        aria-haspopup="listbox"
+                        onClick={() => {
+                          setUtilityOpen(false);
+                          setDeviceIdOpen(false);
+                          setApiParameterOpen(current => !current);
+                        }}
+                      >
+                        {apiIdentifier || "Select parameter"}
+                      </button>
+                      <img src="/assets/add-device/988a8.svg" alt="" />
+                    </span>
+                    {apiParameterOpen && (
+                      <div className="epx-add-device-menu" role="listbox">
+                        {apiParameterOptions.map(option => (
+                          <button
+                            type="button"
+                            key={option}
+                            role="option"
+                            aria-selected={apiIdentifier === option}
+                            onClick={() => {
+                              setApiIdentifier(option);
+                              setApiParameterOpen(false);
+                            }}
+                          >
+                            {option}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </label>
+                </div>
+              )}
+              <label className="epx-add-device-check">
+                <input
+                  type="checkbox"
+                  checked={multipleMeters}
+                  onChange={event => setMultipleMeters(event.target.checked)}
+                />
+                Multiple meters with same NMI and same serial number
               </label>
-              <label className="epx-add-device-field">
-                <span>API identifier</span>
-                <input value={apiIdentifier} onChange={e => setApiIdentifier(e.target.value)} placeholder="Endpoint or key" />
+              <label className="epx-add-device-check">
+                <input
+                  type="checkbox"
+                  checked={internalOnly}
+                  onChange={event => setInternalOnly(event.target.checked)}
+                />
+                Visible to internal users only
               </label>
-              <label className="epx-add-device-field">
-                <span>Data format</span>
-                <span className="epx-add-device-select">
-                  <select value={dataFormat} onChange={e => setDataFormat(e.target.value)}>
-                    <option value="">Select format</option>
-                    <option>Captis API</option>
-                    <option>CSV</option>
-                    <option>JSON</option>
-                    <option>XML</option>
-                  </select>
-                  <img src="/assets/add-device/988a8.svg" alt="" />
-                </span>
-              </label>
-            </div>
+                </div>
+              </section>
+              <section className="epx-add-device-step">
+                <h3>Step 2 — Supplier contact</h3>
+                <div className="epx-add-device-step-body">
+                <div className="epx-add-device-grid">
+                  <label className="epx-add-device-field">
+                    <span>Contact name</span>
+                    <input
+                      value={contactName}
+                      onChange={event => setContactName(event.target.value)}
+                      placeholder="Enter name"
+                    />
+                  </label>
+                  <label className="epx-add-device-field">
+                    <span>Email</span>
+                    <input
+                      type="email"
+                      value={contactEmail}
+                      onChange={event => setContactEmail(event.target.value)}
+                      placeholder="Enter email"
+                    />
+                  </label>
+                </div>
+                <div className="epx-add-device-grid">
+                  <label className="epx-add-device-field">
+                    <span>Supplier</span>
+                    <input
+                      value={supplierName}
+                      onChange={event => setSupplierName(event.target.value)}
+                      placeholder="Enter supplier"
+                    />
+                  </label>
+                  <label className="epx-add-device-field">
+                    <span>Phone</span>
+                    <input
+                      type="tel"
+                      value={contactPhone}
+                      onChange={event => setContactPhone(event.target.value)}
+                      placeholder="Enter phone"
+                    />
+                  </label>
+                </div>
+                </div>
+              </section>
+            </>
           )}
         </div>
+        )}
 
-        <div className="epx-add-device-footer">
-          <button type="button" onClick={onClose}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={!saveValid}
-            onClick={() => onAdd({
-              utility,
-              name: meterName,
-              meterId,
-              source,
-              dataFormat: source === "NEM12" ? "NEM12" : dataFormat,
-              nmiNo: source === "NEM12" ? nmiNo : "—",
-              serialNo: source === "NEM12" ? serialNo : "—",
-              captisNumber: source === "Captis" ? captisId : "—",
-            })}
-            className="is-primary"
-          >
-            Save
-          </button>
-        </div>
+        {confirmSave ? (
+          <div className="epx-add-device-footer">
+            <button type="button" onClick={() => submitDevice(true)}>
+              Save without process
+            </button>
+            <button type="button" className="is-primary" onClick={() => submitDevice(false)}>
+              Save & process
+            </button>
+          </div>
+        ) : source !== "Watt Watchers" && (
+          <div className="epx-add-device-footer">
+            <button type="button" onClick={onClose}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={!saveValid}
+              onClick={() => setConfirmSave(true)}
+              className="is-primary"
+            >
+              Save
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1045,7 +1979,7 @@ function SourceConfiguration({
     <section className="border border-black bg-white">
       <div className="border-b border-black px-4 py-3 text-sm font-bold">Select Data Source</div>
       <div className="grid grid-cols-2 gap-2 p-4">
-        {["NEM12", "Captis"].map(option => (
+        {["NEM12", "Captis", "Watt Watchers"].map(option => (
           <label
             key={option}
             className={`flex cursor-pointer items-center gap-2 border px-3 py-2.5 text-xs ${source === option ? "border-black bg-black text-white" : "border-gray-400 hover:border-black"}`}
@@ -1091,9 +2025,7 @@ function SourceConfiguration({
           <ModalField label="Serial Number">
             <input value={serialNo} onChange={event => onSerialChange(event.target.value)} className="w-full border border-black bg-white px-3 py-2 text-sm outline-none" />
           </ModalField>
-          <ModalField label="Valid From">
-            <input type="date" value={validFrom} onChange={event => onValidFromChange(event.target.value)} className="w-full border border-black bg-white px-3 py-2 text-sm outline-none" />
-          </ModalField>
+          <DateField label="Valid From" value={validFrom} onChange={onValidFromChange} />
         </div>
       )}
 
@@ -1128,16 +2060,30 @@ function DataReupload({ meters, requestView, onRequestViewChange }: {
   const [entryMode, setEntryMode] = useState<"" | "mdp" | "site">("site");
   const [provider, setProvider] = useState("");
   const [selectedSites, setSelectedSites] = useState<string[]>([]);
-  const [siteDropdownOpen, setSiteDropdownOpen] = useState(false);
-  const [siteSearch, setSiteSearch] = useState("");
   const [selectedMeters, setSelectedMeters] = useState<number[]>([]);
-  const [fromDate, setFromDate] = useState("2026-09-01");
-  const [toDate, setToDate] = useState("2026-09-30");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [method, setMethod] = useState<"automatic" | "manual">("automatic");
-  const [fileName, setFileName] = useState("");
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [submitted, setSubmitted] = useState(false);
-  const [showCompletionAlert, setShowCompletionAlert] = useState(true);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [openMenu, setOpenMenu] = useState<null | "mdp" | "status" | "file" | "pageSize">(null);
+  const [mdpFilter, setMdpFilter] = useState<string[]>(["Intellihub", "Energy Australia"]);
+  const [statusFilter, setStatusFilter] = useState<string[]>(["File uploaded", "Connecting data", "Processing data", "Available in Edge", "Error"]);
+  const [fileFilter, setFileFilter] = useState<string[]>(["Has attachment", "No attachment"]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(13);
+  const [deviceSort, setDeviceSort] = useState<{ key: "site" | "edgeId" | "nmi" | "serial"; direction: 1 | -1 } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!openMenu) return;
+    function handle(event: PointerEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) setOpenMenu(null);
+    }
+    document.addEventListener("pointerdown", handle);
+    return () => document.removeEventListener("pointerdown", handle);
+  }, [openMenu]);
 
   const SITES = ["Sydney Hospital", "Royal Prince Alfred Hospital", "Westmead Hospital", "Liverpool Hospital", "Blacktown Hospital"];
   const makeRequestDevices = (start: number, count: number) => Array.from({ length: count }, (_, index) => {
@@ -1155,39 +2101,199 @@ function DataReupload({ meters, requestView, onRequestViewChange }: {
       id: "DR-2031",
       submitted: "1 Oct 2026",
       provider: "Intellihub",
-      siteCount: 3,
-      devices: makeRequestDevices(1, 4),
-      dateRange: "Sep 2026",
-      status: "Processing",
-      progress: "45%",
-      fileName: "",
+      sites: ["Sydney Hospital"],
+      devices: [
+        ["EDGE-2048", "NMI630100001", "770240520001"],
+        ["EDGE-2049", "NMI630100002", "770240520002"],
+        ["EDGE-2064", "NMI630100003", "770240520003"],
+        ["EDGE-2065", "NMI630100004", "770240520004"],
+      ].map(([edgeId, nmi, serial]) => ({ portfolio: "NSW Health", site: "Sydney Hospital", edgeId, nmi, serial })),
+      deviceText: "EDGE-2048, EDGE-2049",
+      deviceExtra: 2,
+      dateRange: "15 Sep 2026 - 31 Sep 2026",
+      status: "File uploaded",
+      statusLabel: "File uploaded (Step 1 of 3)",
+      hasFile: false,
     },
     {
       id: "DR-2030",
       submitted: "30 Sep 2026",
       provider: "Intellihub",
-      siteCount: 5,
-      devices: makeRequestDevices(5, 12),
-      dateRange: "Aug 2026",
-      status: "Complete",
-      progress: "100%",
-      fileName: "NEM12_August_2026.csv",
+      sites: ["Westmead Hospital"],
+      devices: makeRequestDevices(5, 1).map(device => ({ ...device, site: "Westmead Hospital", edgeId: "EDGE-2052" })),
+      deviceText: "EDGE-2052",
+      deviceExtra: 0,
+      dateRange: "07 Sep 2026 - 18 Sep 2026",
+      status: "Connecting data",
+      statusLabel: "Connecting data (Step 2 of 3)",
+      hasFile: false,
     },
     {
       id: "DR-2029",
       submitted: "29 Sep 2026",
       provider: "Energy Australia",
-      siteCount: 2,
-      devices: makeRequestDevices(17, 6),
-      dateRange: "Jul 2026",
+      sites: ["Sydney Hospital", "Westmead Hospital", "Liverpool Hospital", "Blacktown Hospital", "Royal Prince Alfred Hospital", "North Shore Hospital"],
+      devices: makeRequestDevices(17, 24),
+      deviceText: "24 devices across 6 sites",
+      deviceExtra: 0,
+      dateRange: "18 Sep 2026 - 27 Sep 2026",
+      status: "Processing data",
+      statusLabel: "Processing data (Step 3 of 3)",
+      hasFile: true,
+    },
+    {
+      id: "DR-2028",
+      submitted: "27 Sep 2026",
+      provider: "Intellihub",
+      sites: ["Sydney Hospital"],
+      devices: makeRequestDevices(41, 1).map(device => ({ ...device, edgeId: "EDGE-2048" })),
+      deviceText: "EDGE-2048",
+      deviceExtra: 0,
+      dateRange: "07 Sep 2026 - 08 Sep 2026",
       status: "Failed",
-      progress: "Error",
-      fileName: "NEM12_July_2026.csv",
+      statusLabel: "Failed",
+      hasFile: false,
+    },
+    {
+      id: "DR-2027",
+      submitted: "25 Sep 2026",
+      provider: "Intellihub",
+      sites: ["North Shore Hospital", "Sydney Hospital", "Westmead Hospital", "Liverpool Hospital"],
+      devices: makeRequestDevices(42, 14),
+      deviceText: "14 devices across 6 sites",
+      deviceExtra: 0,
+      dateRange: "03 Sep 2026 - 08 Sep 2026",
+      status: "Available in Edge",
+      statusLabel: "Available in Edge",
+      hasFile: true,
+    },
+    {
+      id: "DR-2026",
+      submitted: "16 Aug 2026",
+      provider: "Intellihub",
+      sites: ["Westmead Hospital"],
+      devices: makeRequestDevices(56, 3).map((device, index) => ({ ...device, site: "Westmead Hospital", edgeId: `EDGE-${2048 + index}` })),
+      deviceText: "EDGE-2048",
+      deviceExtra: 2,
+      dateRange: "14 Aug 2026 - 16 Aug 2026",
+      status: "Available in Edge",
+      statusLabel: "Available in Edge",
+      hasFile: true,
+    },
+    {
+      id: "DR-2025",
+      submitted: "12 Aug 2026",
+      provider: "Energy Australia",
+      sites: ["Royal Prince Alfred Hospital"],
+      devices: makeRequestDevices(59, 2).map(device => ({ ...device, site: "Royal Prince Alfred Hospital" })),
+      deviceText: "EDGE-2106",
+      deviceExtra: 1,
+      dateRange: "01 Aug 2026 - 10 Aug 2026",
+      status: "Available in Edge",
+      statusLabel: "Available in Edge",
+      hasFile: true,
+    },
+    {
+      id: "DR-2024",
+      submitted: "8 Aug 2026",
+      provider: "Intellihub",
+      sites: ["Liverpool Hospital", "Blacktown Hospital"],
+      devices: makeRequestDevices(61, 7),
+      deviceText: "7 devices across 2 sites",
+      deviceExtra: 0,
+      dateRange: "20 Jul 2026 - 31 Jul 2026",
+      status: "Processing data",
+      statusLabel: "Processing data (Step 3 of 3)",
+      hasFile: true,
+    },
+    {
+      id: "DR-2023",
+      submitted: "3 Aug 2026",
+      provider: "Energy Australia",
+      sites: ["Sydney Hospital"],
+      devices: makeRequestDevices(68, 1).map(device => ({ ...device, site: "Sydney Hospital" })),
+      deviceText: "EDGE-2115",
+      deviceExtra: 0,
+      dateRange: "14 Jul 2026 - 28 Jul 2026",
+      status: "Failed",
+      statusLabel: "Failed",
+      hasFile: false,
+    },
+    {
+      id: "DR-2022",
+      submitted: "28 Jul 2026",
+      provider: "Intellihub",
+      sites: ["Westmead Hospital"],
+      devices: makeRequestDevices(69, 3).map(device => ({ ...device, site: "Westmead Hospital" })),
+      deviceText: "EDGE-2116",
+      deviceExtra: 2,
+      dateRange: "01 Jul 2026 - 14 Jul 2026",
+      status: "Connecting data",
+      statusLabel: "Connecting data (Step 2 of 3)",
+      hasFile: false,
+    },
+    {
+      id: "DR-2021",
+      submitted: "21 Jul 2026",
+      provider: "Energy Australia",
+      sites: ["Sydney Hospital", "Royal Prince Alfred Hospital", "Westmead Hospital"],
+      devices: makeRequestDevices(72, 11),
+      deviceText: "11 devices across 3 sites",
+      deviceExtra: 0,
+      dateRange: "15 Jun 2026 - 30 Jun 2026",
+      status: "File uploaded",
+      statusLabel: "File uploaded (Step 1 of 3)",
+      hasFile: true,
+    },
+    {
+      id: "DR-2020",
+      submitted: "14 Jul 2026",
+      provider: "Intellihub",
+      sites: ["Blacktown Hospital"],
+      devices: makeRequestDevices(83, 4).map(device => ({ ...device, site: "Blacktown Hospital" })),
+      deviceText: "EDGE-2130",
+      deviceExtra: 3,
+      dateRange: "01 Jun 2026 - 15 Jun 2026",
+      status: "Available in Edge",
+      statusLabel: "Available in Edge",
+      hasFile: true,
+    },
+    {
+      id: "DR-2019",
+      submitted: "7 Jul 2026",
+      provider: "Energy Australia",
+      sites: ["Liverpool Hospital"],
+      devices: makeRequestDevices(87, 2).map(device => ({ ...device, site: "Liverpool Hospital" })),
+      deviceText: "EDGE-2134",
+      deviceExtra: 1,
+      dateRange: "16 May 2026 - 31 May 2026",
+      status: "Available in Edge",
+      statusLabel: "Available in Edge",
+      hasFile: true,
     },
   ];
+  const statusKey = (status: string) => status === "Failed" ? "Error" : status;
+  const filteredRequests = requestHistory.filter(request => {
+    const haystack = [request.id, request.provider, request.deviceText, ...request.sites, ...request.devices.flatMap(device => Object.values(device))].join(" ").toLowerCase();
+    const fileKey = request.hasFile ? "Has attachment" : "No attachment";
+    return haystack.includes(query.trim().toLowerCase())
+      && mdpFilter.includes(request.provider)
+      && statusFilter.includes(statusKey(request.status))
+      && fileFilter.includes(fileKey);
+  });
+  const pageCount = Math.max(1, Math.ceil(filteredRequests.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const visibleRequests = filteredRequests.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  function toggleFilter(current: string[], option: string, all: string[], update: (next: string[]) => void) {
+    if (option === "all") {
+      update(current.length === all.length ? [] : all);
+      return;
+    }
+    update(current.includes(option) ? current.filter(item => item !== option) : [...current, option]);
+    setPage(1);
+  }
   const selectedRequest = requestHistory.find(request => request.id === selectedRequestId) ?? null;
   const selectionReady = entryMode === "mdp" ? Boolean(provider) : entryMode === "site" && selectedSites.length > 0;
-  const visibleSites = SITES.filter(site => site.toLowerCase().includes(siteSearch.toLowerCase()));
   const meterGroups = entryMode === "mdp"
     ? SITES.slice(0, Math.min(3, meters.length)).map((site, siteIndex) => ({
         site,
@@ -1201,6 +2307,10 @@ function DataReupload({ meters, requestView, onRequestViewChange }: {
   const allSiteDevicesSelected = entryMode === "site" && meters.every(meter => selectedMeters.includes(meter.id));
   const step1Complete = selectionReady && selectedMeters.length > 0;
   const step2Valid = Boolean(fromDate) && Boolean(toDate);
+  const requestDirty = Boolean(
+    provider || selectedSites.length || selectedMeters.length || fromDate || toDate ||
+    method !== "automatic" || uploadFile
+  );
 
   function toggleMeter(id: number) {
     setSelectedMeters(current => current.includes(id) ? current.filter(meterId => meterId !== id) : [...current, id]);
@@ -1231,487 +2341,342 @@ function DataReupload({ meters, requestView, onRequestViewChange }: {
     setEntryMode("site");
     setProvider("");
     setSelectedSites([]);
-    setSiteDropdownOpen(false);
-    setSiteSearch("");
     setSelectedMeters([]);
-    setFromDate("2026-09-01");
-    setToDate("2026-09-30");
+    setFromDate("");
+    setToDate("");
     setMethod("automatic");
-    setFileName("");
+    setUploadFile(null);
     setSubmitted(false);
   }
 
   return (
-    <div className="epx-page flex-1 overflow-y-auto bg-gray-50">
-      <div className="px-6 py-6">
-        <div className="mb-6 flex border-b border-black">
-          <button
-            type="button"
-            onClick={() => {
-              cancelRequest();
-              onRequestViewChange("new");
+    <div className="epx-reupload">
+          <div className="epx-reupload-body" ref={menuRef}>
+            <label className="epx-reupload-search">
+              <img src="/assets/device-management/bf431.svg" alt="" />
+              <input
+                type="search"
+                value={query}
+                onChange={event => { setQuery(event.target.value); setPage(1); }}
+                placeholder="Search request ID, device IDs, site..."
+              />
+            </label>
+            <section className="epx-request-card">
+              <div className="epx-request-caption">Request history</div>
+              <div className="epx-request-scroll">
+                <table className="epx-request-table">
+                  <thead>
+                    <tr>
+                      <th>Request ID</th>
+                      <th>Submitted</th>
+                      <th className="is-menu">
+                        <button type="button" onClick={() => setOpenMenu(open => open === "mdp" ? null : "mdp")}>MDP <img src="/assets/reupload/chevron.svg" alt="" /></button>
+                        {openMenu === "mdp" && <FilterChoices label="MDP" options={["Intellihub", "Energy Australia"]} selected={mdpFilter} onToggle={option => toggleFilter(mdpFilter, option, ["Intellihub", "Energy Australia"], setMdpFilter)} />}
+                      </th>
+                      <th>Site count</th>
+                      <th>Devices</th>
+                      <th>Date range</th>
+                      <th className="is-menu">
+                        <button type="button" onClick={() => setOpenMenu(open => open === "status" ? null : "status")}>Status <img src="/assets/reupload/chevron.svg" alt="" /></button>
+                        {openMenu === "status" && <FilterChoices label="Status" options={["File uploaded", "Connecting data", "Processing data", "Available in Edge", "Error"]} selected={statusFilter} onToggle={option => toggleFilter(statusFilter, option, ["File uploaded", "Connecting data", "Processing data", "Available in Edge", "Error"], setStatusFilter)} />}
+                      </th>
+                      <th className="is-menu">
+                        <button type="button" onClick={() => setOpenMenu(open => open === "file" ? null : "file")}>File <img src="/assets/reupload/chevron.svg" alt="" /></button>
+                        {openMenu === "file" && <FilterChoices label="File" options={["Has attachment", "No attachment"]} selected={fileFilter} onToggle={option => toggleFilter(fileFilter, option, ["Has attachment", "No attachment"], setFileFilter)} />}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleRequests.map(request => (
+                      <tr key={request.id}>
+                        <td>{request.id}</td>
+                        <td>{request.submitted}</td>
+                        <td>{request.provider}</td>
+                        <td>
+                          <span>{request.sites[0]}</span>
+                          {request.sites.length > 1 && (
+                            <button type="button" className="epx-count-link" onClick={() => setSelectedRequestId(request.id)}>+{request.sites.length - 1} more</button>
+                          )}
+                        </td>
+                        <td>
+                          {request.deviceText.includes("across") ? (
+                            <button type="button" className="epx-device-summary" onClick={() => setSelectedRequestId(request.id)}>{request.deviceText}</button>
+                          ) : (
+                            <span>{request.deviceText}</span>
+                          )}
+                          {request.deviceExtra > 0 && (
+                            <button type="button" className="epx-count-link" onClick={() => setSelectedRequestId(request.id)}>+{request.deviceExtra} more</button>
+                          )}
+                        </td>
+                        <td>{request.dateRange}</td>
+                        <td>
+                          <span className={`epx-request-status${request.status === "Failed" ? " is-failed" : request.status === "Available in Edge" ? " is-ready" : ""}`}>
+                            {request.status === "Failed" && <img src="/assets/reupload/error.svg" alt="" />}
+                            {request.status === "Available in Edge" && <img src="/assets/reupload/check.svg" alt="" />}
+                            {request.statusLabel}
+                          </span>
+                        </td>
+                        <td>{request.hasFile && <img src="/assets/reupload/attach.svg" alt="Attachment" />}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="epx-request-footer">
+                <div className="epx-results-per-page epx-page-size">
+                  <button type="button" onClick={() => setOpenMenu(open => open === "pageSize" ? null : "pageSize")}>
+                    {pageSize}
+                    <img src="/assets/device-management/3c143.svg" alt="" />
+                  </button>
+                  {openMenu === "pageSize" && (
+                    <div className="epx-filter-menu is-compact">
+                      {[13, 26, 52].map(size => (
+                        <button key={size} type="button" onClick={() => { setPageSize(size); setPage(1); setOpenMenu(null); }}>{size}</button>
+                      ))}
+                    </div>
+                  )}
+                  <span>Results per page</span>
+                </div>
+                <div className="epx-pager">
+                  <button type="button" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} aria-label="Previous page">
+                    <img src="/assets/reupload/prev.svg" alt="" />
+                  </button>
+                  {Array.from({ length: pageCount }, (_, index) => index + 1).map(number => (
+                    <button key={number} type="button" className={number === currentPage ? "is-current" : ""} onClick={() => setPage(number)}>{number}</button>
+                  ))}
+                  <button type="button" className="is-next" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)} aria-label="Next page">
+                    <img src="/assets/reupload/next.svg" alt="" />
+                  </button>
+                </div>
+              </div>
+            </section>
+          </div>
+        {requestView === "new" && (
+          <div
+            className="epx-new-request-backdrop"
+            role="presentation"
+            onClick={event => {
+              if (event.target === event.currentTarget && (!requestDirty || submitted)) {
+                cancelRequest();
+                onRequestViewChange("history");
+              }
             }}
-            className={`-mb-px border border-b-0 border-black px-4 py-2.5 text-sm ${requestView === "new" ? "bg-black text-white" : "bg-white text-black hover:bg-gray-100"}`}
-            aria-current={requestView === "new" ? "page" : undefined}
           >
-            New request
-          </button>
-          <button
-            type="button"
-            onClick={() => onRequestViewChange("history")}
-            className={`-mb-px flex items-center gap-2 border-y border-r border-black px-4 py-2.5 text-sm ${requestView === "history" ? "bg-black text-white" : "bg-white text-black hover:bg-gray-100"}`}
-            aria-current={requestView === "history" ? "page" : undefined}
-          >
-            Request history
-            <span className={`flex h-5 min-w-5 items-center justify-center rounded-full border px-1 text-xs ${requestView === "history" ? "border-white bg-white text-black" : "border-black bg-black text-white"}`}>
-              1
-            </span>
-          </button>
-        </div>
-
-        {requestView === "new" ? (
-          <div className="max-w-6xl space-y-5">
-            {!submitted ? (
-              <div className="space-y-4">
-
-                {/* Step 1: Entry point */}
-                <section className="border border-black bg-white">
-                  <div className="border-b border-black px-4 py-3">
-                    <div className="text-sm font-bold">Step 1 — How would you like to start?</div>
-                    <div className="mt-1 text-xs text-gray-500">Choose whether to select devices via a Meter Data Provider or directly by site.</div>
+            <div className="epx-new-request" role="dialog" aria-modal="true" aria-labelledby="new-request-title" onClick={event => event.stopPropagation()}>
+              <div className="epx-new-request-header">
+                <div>
+                  <div id="new-request-title">New request</div>
+                  <p>Reprocess NEM12 data for selected device</p>
+                </div>
+                <button type="button" onClick={() => { cancelRequest(); onRequestViewChange("history"); }} aria-label="Close">
+                  <img src="/assets/reupload/close.svg" alt="" />
+                </button>
+              </div>
+              {submitted ? (
+                <div className="epx-new-request-feedback">
+                  <div>
+                    <img src="/assets/reupload/check-circle.svg" alt="" />
+                    <strong>Re-upload request submitted</strong>
                   </div>
-                  <div className="flex flex-col gap-4 p-4">
-                    <div className="grid grid-cols-2 border border-black">
-                      <label className={`flex cursor-pointer items-center gap-2 border-r border-black px-3 py-2.5 text-sm ${entryMode === "site" ? "bg-black text-white" : "hover:bg-gray-100"}`}>
-                        <input
-                          type="radio"
-                          name="reupload-entry-mode"
-                          value="site"
-                          checked={entryMode === "site"}
-                          onChange={() => {
-                            setEntryMode("site");
-                            setProvider("");
-                            setSelectedSites([]);
-                            setSiteDropdownOpen(false);
-                            setSiteSearch("");
-                            setSelectedMeters([]);
-                          }}
-                          className="accent-black"
-                        />
-                        Site
-                      </label>
-                      <label className={`flex cursor-pointer items-center gap-2 px-3 py-2.5 text-sm ${entryMode === "mdp" ? "bg-black text-white" : "hover:bg-gray-100"}`}>
-                        <input
-                          type="radio"
-                          name="reupload-entry-mode"
-                          value="mdp"
-                          checked={entryMode === "mdp"}
-                          onChange={() => {
-                            setEntryMode("mdp");
-                            setProvider("Intellihub");
-                            setSelectedSites(SITES.slice(0, Math.min(3, meters.length)));
-                            setSiteDropdownOpen(false);
-                            setSiteSearch("");
-                            setSelectedMeters(meters.map(meter => meter.id));
-                          }}
-                          className="accent-black"
-                        />
-                        Meter Data Provider (MDP)
-                      </label>
-                    </div>
-
-                    {entryMode === "mdp" && (
-                      <ReuploadField label="Meter Data Provider (MDP)">
-                        <select
-                          value={provider}
-                          onChange={event => {
-                            const nextProvider = event.target.value;
-                            setProvider(nextProvider);
-                            setSelectedSites(nextProvider ? SITES.slice(0, Math.min(3, meters.length)) : []);
-                            setSelectedMeters(nextProvider ? meters.map(meter => meter.id) : []);
-                          }}
-                          className="w-full border border-black bg-white px-3 py-2 text-sm outline-none"
-                        >
-                          <option value="">Select provider</option>
-                          <option>Intellihub</option>
-                          <option>Energy Australia</option>
-                          <option>Essential Energy</option>
-                        </select>
-                      </ReuploadField>
-                    )}
-
-                    {entryMode === "site" && (
-                      <div className="relative flex flex-col gap-1.5">
-                        <div className="text-xs font-bold">Site</div>
-                      <button
-                        type="button"
-                        onClick={() => setSiteDropdownOpen(open => !open)}
-                        className="flex w-full items-center justify-between border border-black bg-white px-3 py-2 text-left text-sm"
-                        aria-haspopup="listbox"
-                        aria-expanded={siteDropdownOpen}
-                      >
-                        <span className={selectedSites[0] ? "text-black" : "text-gray-500"}>
-                          {selectedSites[0] || "Select site"}
-                        </span>
-                        <span aria-hidden="true">⌄</span>
-                      </button>
-                      {siteDropdownOpen && (
-                        <div className="absolute left-0 right-0 top-full z-20 mt-1 border-2 border-black bg-white">
-                          <div className="border-b border-black p-2">
-                            <input
-                              type="search"
-                              value={siteSearch}
-                              onChange={event => setSiteSearch(event.target.value)}
-                              placeholder="Search sites..."
-                              autoFocus
-                              className="w-full border border-black bg-white px-3 py-2 text-sm outline-none placeholder:text-gray-400"
-                            />
+                  <p>Request ID: <b>DR-2031</b></p>
+                  <p>Data will be processed in the background, you can monitor its progress on the main page. We will email you when processing is complete.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="epx-new-request-body">
+                    <section>
+                      <h3>Step 1 — How would you like to start?</h3>
+                      <div className="epx-new-request-row">
+                        <label>
+                          <span>Find by</span>
+                          <div className="epx-mode-toggle">
+                            <button type="button" className={entryMode === "site" ? "is-on" : ""} onClick={() => { setEntryMode("site"); setProvider(""); setSelectedSites([]); setSelectedMeters([]); }}>Site</button>
+                            <button type="button" className={entryMode === "mdp" ? "is-on" : ""} onClick={() => { setEntryMode("mdp"); setProvider(""); setSelectedSites([]); setSelectedMeters([]); }}>MDP</button>
                           </div>
-                          <div className="max-h-48 overflow-y-auto" role="listbox" aria-label="Sites">
-                            {visibleSites.map(site => (
-                              <button
-                                key={site}
-                                type="button"
-                                role="option"
-                                aria-selected={selectedSites[0] === site}
-                                onClick={() => {
-                                  setSelectedSites([site]);
-                                  setSelectedMeters(meters.map(meter => meter.id));
-                                  setSiteDropdownOpen(false);
-                                  setSiteSearch("");
-                                }}
-                                className={`w-full border-b border-gray-200 px-3 py-2 text-left text-sm last:border-b-0 ${selectedSites[0] === site ? "bg-black text-white" : "hover:bg-gray-100"}`}
-                              >
-                                {site}
-                              </button>
-                            ))}
-                            {visibleSites.length === 0 && (
-                              <div className="px-3 py-4 text-center text-xs text-gray-500">No sites found.</div>
-                            )}
-                          </div>
-                        </div>
-                      )}
+                        </label>
+                        {entryMode === "mdp" ? (
+                          <SettingSelect
+                            label="MDP"
+                            value={provider}
+                            placeholder="Select provider"
+                            options={["Intellihub", "Energy Australia", "Essential Energy"]}
+                            onChange={next => {
+                              setProvider(next);
+                              setSelectedSites(SITES.slice(0, Math.min(3, meters.length)));
+                              setSelectedMeters(meters.map(meter => meter.id));
+                            }}
+                          />
+                        ) : (
+                          <SettingSelect
+                            label="Site"
+                            value={selectedSites[0] ?? ""}
+                            placeholder="Select site"
+                            options={SITES}
+                            onChange={site => {
+                              setSelectedSites([site]);
+                              setSelectedMeters(meters.map(meter => meter.id));
+                            }}
+                          />
+                        )}
                       </div>
-                    )}
-                  </div>
-                </section>
-
-                {/* Step 2: Included sites and devices */}
-                <section className="border border-black bg-white">
-                    <div className="border-b border-black px-4 py-3">
-                      <div className="text-sm font-bold">
-                        Step 2 — {entryMode === "mdp" ? "Confirm included sites" : "Select devices"}
-                      </div>
-                      <div className="mt-1 text-xs text-gray-500">
-                        {entryMode === "mdp"
-                          ? "All devices within each included site will be re-uploaded."
-                          : selectedSites[0]
-                            ? `Choose the devices to re-upload at ${selectedSites[0]}.`
-                            : "Select a site in Step 1 to view its devices."}
-                      </div>
-                    </div>
-                    {selectionReady ? (
-                      <div className="flex flex-col gap-4 p-4">
-                      <div className="border border-black">
-                        <div id="device-selection-list">
-                            {entryMode === "mdp" && (
-                              <label className="flex cursor-pointer items-center justify-between gap-4 border-b border-black bg-gray-100 px-3 py-2.5">
-                                <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
-                                  <input
-                                    type="checkbox"
-                                    checked={allMdpSitesSelected}
-                                    onChange={toggleAllMdpSites}
-                                    className="accent-black"
-                                  />
-                                  All sites
-                                </span>
-                                <span className="text-xs">{meters.length} devices total</span>
+                    </section>
+                    <section>
+                      <h3>Step 2 — {entryMode === "mdp" ? "Confirm included sites" : "Select devices"}</h3>
+                      {selectionReady ? (
+                        <div className="epx-new-request-step">
+                          <div className="epx-new-request-device-card">
+                            <div className="epx-new-request-device-head">
+                              <label>
+                                <input type="checkbox" checked={entryMode === "mdp" ? allMdpSitesSelected : allSiteDevicesSelected} onChange={() => entryMode === "mdp" ? toggleAllMdpSites() : setSelectedMeters(allSiteDevicesSelected ? [] : meters.map(meter => meter.id))} />
+                                {entryMode === "mdp" ? "All sites" : "All devices"}
                               </label>
-                            )}
-                            {entryMode === "mdp" ? (
-                              <div className="divide-y divide-gray-300">
-                                {meterGroups.map(group => {
-                                  const included = selectedSites.includes(group.site);
-                                  return (
-                                    <label key={group.site} className="flex cursor-pointer items-center justify-between gap-4 px-3 py-2.5 hover:bg-gray-50">
-                                      <span className="flex items-center gap-2 text-sm">
-                                        <input
-                                          type="checkbox"
-                                          checked={included}
-                                          onChange={() => toggleSiteGroup(group)}
-                                          className="accent-black"
-                                        />
-                                        {group.site}
-                                      </span>
-                                      <span className="text-xs text-gray-500">
-                                        {group.meters.length} {group.meters.length === 1 ? "device" : "devices"} included
-                                      </span>
-                                    </label>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <>
-                                <div className="flex items-center justify-between gap-4 border-b border-black bg-black px-3 py-2 text-white">
-                                  <span className="text-xs font-bold uppercase tracking-wider">Intellihub</span>
-                                  <label className="flex cursor-pointer items-center gap-2 text-xs font-bold uppercase tracking-wider">
-                                    <input
-                                      type="checkbox"
-                                      checked={allSiteDevicesSelected}
-                                      onChange={() => setSelectedMeters(allSiteDevicesSelected ? [] : meters.map(meter => meter.id))}
-                                      className="accent-black"
-                                    />
-                                    All devices
-                                  </label>
-                                </div>
-                                <div className="divide-y divide-gray-300">
-                                  {meters.map(meter => (
-                                    <label key={meter.id} className="flex cursor-pointer items-center justify-between gap-4 px-3 py-2.5 hover:bg-gray-50">
-                                      <span className="flex items-center gap-2 text-sm">
-                                        <input
-                                          type="checkbox"
-                                          checked={selectedMeters.includes(meter.id)}
-                                          onChange={() => toggleMeter(meter.id)}
-                                          className="accent-black"
-                                        />
-                                        {meter.name}
-                                      </span>
-                                      <span className="text-xs text-gray-500">{meter.edgeId}</span>
-                                    </label>
-                                  ))}
-                                </div>
-                              </>
-                            )}
+                              <span>{entryMode === "mdp" ? "Sites" : (provider || "Intellihub")}</span>
+                            </div>
+                            {entryMode === "mdp" ? meterGroups.map(group => (
+                              <label key={group.site} className="epx-new-request-device">
+                                <span><input type="checkbox" checked={selectedSites.includes(group.site)} onChange={() => toggleSiteGroup(group)} />{group.site}</span>
+                                <small>{group.meters.length} devices</small>
+                              </label>
+                            )) : meters.map(meter => (
+                              <label key={meter.id} className="epx-new-request-device">
+                                <span><input type="checkbox" checked={selectedMeters.includes(meter.id)} onChange={() => toggleMeter(meter.id)} />{meter.name}</span>
+                                <small>{formatEdgeId(meter.edgeId)}</small>
+                              </label>
+                            ))}
+                          </div>
+                          <p>Included: {entryMode === "mdp" ? `${selectedSites.length} sites · ` : ""}{selectedMeters.length} devices</p>
                         </div>
-                      </div>
-                      <div className="text-xs font-bold">
-                        {entryMode === "mdp"
-                          ? `Included: ${selectedSites.length} ${selectedSites.length === 1 ? "site" : "sites"} · ${selectedMeters.length} devices`
-                          : `Included: ${selectedMeters.length} devices`}
-                      </div>
-                      </div>
-                    ) : (
-                      <div className="bg-gray-50 px-4 py-6 text-center text-xs text-gray-500">
-                        Complete Step 1 to configure included sites and devices.
-                      </div>
-                    )}
-                </section>
-
-                {/* Date range + method */}
-                <section className="border border-black bg-white">
-                    <div className="border-b border-black px-4 py-3">
-                      <div className="text-sm font-bold">Step 3 — Date range &amp; method</div>
-                    </div>
-                    <div className="flex flex-col gap-5 p-4">
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <ReuploadField label="From date">
-                          <input type="date" value={fromDate} onChange={event => setFromDate(event.target.value)} disabled={!step1Complete} className="w-full border border-black bg-white px-3 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400" />
-                        </ReuploadField>
-                        <ReuploadField label="To date">
-                          <input type="date" value={toDate} onChange={event => setToDate(event.target.value)} disabled={!step1Complete} className="w-full border border-black bg-white px-3 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400" />
-                        </ReuploadField>
-                      </div>
-                      <div className="text-xs text-gray-500">Only data within this period will be reprocessed.</div>
-                      <label className={`flex items-start gap-3 border-t border-gray-200 pt-4 ${step1Complete ? "cursor-pointer" : "cursor-not-allowed text-gray-400"}`}>
-                        <input type="checkbox" checked={method === "manual"} onChange={event => setMethod(event.target.checked ? "manual" : "automatic")} disabled={!step1Complete} className="mt-0.5 accent-black" />
+                      ) : (
+                        <div className="epx-new-request-empty">Complete Step 1 to configure included sites and devices.</div>
+                      )}
+                    </section>
+                    <section>
+                      <h3>Step 3 — Date range</h3>
+                      <DateRangeField className="epx-new-request-dates" from={fromDate} to={toDate} disabled={!step1Complete} onFromChange={setFromDate} onToChange={setToDate} />
+                    </section>
+                    <div className="epx-new-request-manual">
+                      <label>
+                        <input type="checkbox" checked={method === "manual"} disabled={!step1Complete} onChange={event => { setMethod(event.target.checked ? "manual" : "automatic"); if (!event.target.checked) setUploadFile(null); }} />
                         <span>
-                          <span className="block text-xs font-bold">Upload a NEM12 file manually</span>
-                          <span className="mt-1 block text-xs text-gray-500">Use this fallback when automatic historical retrieval is unavailable.</span>
+                          <strong>Upload a NEM12 file manually</strong>
+                          <small>Use this fallback when automatic historical retrieval is unavailable.</small>
                         </span>
                       </label>
-                      {method === "manual" && (
-                        <label className="flex cursor-pointer items-center justify-between border border-dashed border-black bg-white px-3 py-3 hover:bg-gray-50">
-                          <span className="text-sm">Choose file</span>
-                          <span className="text-xs text-gray-500">{fileName || "No file selected"}</span>
-                          <input type="file" accept=".csv,.nem12,.txt" className="sr-only" onChange={event => setFileName(event.target.files?.[0]?.name ?? "")} />
+                      {method === "manual" && !uploadFile && (
+                        <label
+                          className="epx-upload-drop"
+                          onDragOver={event => event.preventDefault()}
+                          onDrop={event => {
+                            event.preventDefault();
+                            setUploadFile(event.dataTransfer.files?.[0] ?? null);
+                          }}
+                        >
+                          <input type="file" accept=".csv,.nem12,.txt,.pdf,.svg,.png,.jpg,.jpeg,.gif" onChange={event => setUploadFile(event.target.files?.[0] ?? null)} />
+                          <span className="epx-upload-mark" aria-hidden="true" />
+                          <span><strong>Click to upload</strong> or drag and drop files here.</span>
+                          <small>SVG, PNG, JPG or GIF (max. 800x400px)</small>
                         </label>
                       )}
-                      <div className="flex justify-end gap-2 border-t border-gray-200 pt-4">
-                        <button type="button" onClick={cancelRequest} className="border border-black px-4 py-2 text-sm hover:bg-gray-100">Cancel</button>
-                        <button
-                          type="button"
-                          onClick={() => setSubmitted(true)}
-                          disabled={!step1Complete || !step2Valid || (method === "manual" && !fileName)}
-                          className="border border-black bg-black px-4 py-2 text-sm text-white hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-300"
-                        >
-                          Start re-upload
-                        </button>
-                      </div>
+                      {method === "manual" && uploadFile && (
+                        <div className="epx-upload-file">
+                          <img src="/assets/reupload/pdf.svg" alt="" />
+                          <span>
+                            <strong>{uploadFile.name.replace(/\.[^.]+$/, "")}</strong>
+                            <small>{formatUploadSize(uploadFile.size)}</small>
+                          </span>
+                          <button type="button" aria-label="Download file" onClick={() => downloadUpload(uploadFile)}>
+                            <img src="/assets/reupload/download.svg" alt="" />
+                          </button>
+                          <button type="button" aria-label="Remove file" onClick={() => setUploadFile(null)}>
+                            <img src="/assets/reupload/trash.svg" alt="" />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  </section>
-              </div>
-            ) : (
-              <section className="border border-black bg-white p-6">
-                <div className="text-lg font-bold">✓ Re-upload request submitted</div>
-                <div className="mt-5 text-sm">
-                  Request ID: <span className="font-bold">DR-2031</span>
-                </div>
-                <div className="mt-4 text-sm leading-6 text-gray-600">
-                  <div>Data will be processed in the background.</div>
-                  <div>You can monitor its progress from Request History.</div>
-                  <div>We will email you when processing is complete.</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={cancelRequest}
-                  className="mt-6 border border-black bg-black px-4 py-2 text-sm text-white hover:bg-white hover:text-black"
-                >
-                  New request
-                </button>
-              </section>
-            )}
+                  </div>
+                  <div className="epx-new-request-footer">
+                    <button type="button" onClick={() => { cancelRequest(); onRequestViewChange("history"); }}>Cancel</button>
+                    <button type="button" className="is-start" disabled={!step1Complete || !step2Valid || (method === "manual" && !uploadFile)} onClick={() => setSubmitted(true)}>Start re-upload</button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-        ) : (
-          <>
-          {showCompletionAlert && (
-            <div className="mb-4 border-2 border-black bg-white">
-              <div className="flex items-center justify-between gap-4 border-b border-black px-4 py-3">
-                <div className="text-sm font-bold">✅ Completed Since Last Visit (1)</div>
-                <button
-                  type="button"
-                  onClick={() => setShowCompletionAlert(false)}
-                  className="text-lg leading-none text-gray-500 hover:text-black"
-                  aria-label="Dismiss completed request alert"
-                >
-                  ×
+        )}
+        {selectedRequest && (
+          <div className="epx-devices-overlay" role="presentation" onClick={() => setSelectedRequestId(null)}>
+            <div className="epx-devices-dialog" role="dialog" aria-modal="true" aria-labelledby="request-devices-title" onClick={event => event.stopPropagation()}>
+              <div className="epx-devices-header">
+                <div>
+                  <div id="request-devices-title">Devices in {selectedRequest.id}</div>
+                  <p>{selectedRequest.devices.length} devices across {new Set(selectedRequest.devices.map(device => device.site)).size} site(s)</p>
+                </div>
+                <button type="button" onClick={() => setSelectedRequestId(null)} aria-label="Close">
+                  <img src="/assets/reupload/close.svg" alt="" />
                 </button>
               </div>
-              <div className="grid gap-1 px-4 py-3 text-xs sm:grid-cols-3 sm:gap-4">
-                <div className="font-bold">DR-2031</div>
-                <div>Completed yesterday</div>
-                <div>12 devices processed</div>
-              </div>
-            </div>
-          )}
-          <div className="border border-black bg-white">
-            <div className="border-b border-black px-4 py-4">
-              <div className="text-sm font-bold uppercase tracking-wider">Re-upload Request History</div>
-              <div className="mt-1 text-xs text-gray-500">Monitor previous requests and processing outcomes.</div>
-            </div>
-            <div>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-max border-collapse text-xs">
-                  <thead className="bg-gray-100">
-                    <tr className="border-b border-black">
-                      {["Request ID", "Submitted", "Provider", "Site count", "Devices", "Date Range", "Status", "Progress", "File"].map(column => (
-                        <th key={column} className="px-4 py-3 text-left uppercase tracking-wider">{column}</th>
+              <div className="epx-devices-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Portfolio</th>
+                      {(["site", "edgeId", "nmi", "serial"] as const).map(key => (
+                        <th key={key}>
+                          <button type="button" onClick={() => setDeviceSort(current => current?.key === key ? { key, direction: current.direction === 1 ? -1 : 1 } : { key, direction: 1 })}>
+                            {key === "site" ? "Site" : key === "edgeId" ? "Devices" : key === "nmi" ? "NMI #" : "Serial #"}
+                            <img src="/assets/reupload/chevron.svg" alt="" />
+                          </button>
+                        </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {requestHistory.map(request => {
-                      const remainingDevices = request.devices.length - 2;
-                      const isSelected = selectedRequestId === request.id;
-                      return (
-                        <tr
-                          key={request.id}
-                          tabIndex={0}
-                          onClick={() => setSelectedRequestId(isSelected ? null : request.id)}
-                          onKeyDown={event => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault();
-                              setSelectedRequestId(isSelected ? null : request.id);
-                            }
-                          }}
-                          className={`cursor-pointer border-b border-gray-300 last:border-b-0 ${isSelected ? "bg-black text-white" : "hover:bg-gray-100"}`}
-                          aria-selected={isSelected}
-                        >
-                          <td className="px-4 py-3 font-bold">{request.id}</td>
-                          <td className="px-4 py-3">{request.submitted}</td>
-                          <td className="px-4 py-3">{request.provider}</td>
-                          <td className="px-4 py-3">{request.siteCount}</td>
-                          <td className="whitespace-nowrap px-4 py-3">
-                            {request.devices.slice(0, 2).map(device => device.edgeId).join(", ")}
-                            {remainingDevices > 0 ? ` +${remainingDevices}` : ""}
-                          </td>
-                          <td className="px-4 py-3">{request.dateRange}</td>
-                          <td className="px-4 py-3">{request.status}</td>
-                          <td className="px-4 py-3">{request.progress}</td>
-                          <td className="px-4 py-3">
-                            {request.fileName ? (
-                              <a
-                                href={`data:text/plain;charset=utf-8,${encodeURIComponent(`NEM12 export for ${request.id}`)}`}
-                                download={request.fileName}
-                                onClick={event => event.stopPropagation()}
-                                className={`inline-flex border p-1.5 ${isSelected ? "border-white hover:bg-white hover:text-black" : "border-black hover:bg-black hover:text-white"}`}
-                                aria-label={`Download ${request.fileName}`}
-                                title={`Download ${request.fileName}`}
-                              >
-                                <NavIcon type="file" />
-                              </a>
-                            ) : (
-                              <span className={isSelected ? "text-gray-300" : "text-gray-400"}>—</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {[...selectedRequest.devices].sort((a, b) => deviceSort ? a[deviceSort.key].localeCompare(b[deviceSort.key]) * deviceSort.direction : 0).map(device => (
+                      <tr key={`${device.edgeId}-${device.serial}`}>
+                        <td>{device.portfolio}</td>
+                        <td>{device.site}</td>
+                        <td>{device.edgeId}</td>
+                        <td>{device.nmi}</td>
+                        <td>{device.serial}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
             </div>
           </div>
-          {selectedRequest && (
-            <div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="request-devices-title"
-              onClick={() => setSelectedRequestId(null)}
-            >
-              <div
-                className="flex max-h-[80vh] w-full max-w-5xl flex-col border-2 border-black bg-white"
-                onClick={event => event.stopPropagation()}
-              >
-                <div className="flex items-center justify-between gap-4 border-b border-black px-4 py-3">
-                  <div>
-                    <div id="request-devices-title" className="text-sm font-bold uppercase tracking-wider">
-                      Devices in {selectedRequest.id}
-                    </div>
-                    <div className="mt-1 text-xs text-gray-500">
-                      {selectedRequest.devices.length} devices across {selectedRequest.siteCount} sites
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedRequestId(null)}
-                    className="px-1 text-xl leading-none text-gray-500 hover:text-black"
-                    aria-label="Close device details"
-                  >
-                    ×
-                  </button>
-                </div>
-                <div className="overflow-auto">
-                  <table className="w-full min-w-max border-collapse text-xs">
-                    <thead className="sticky top-0 bg-gray-100">
-                      <tr className="border-b border-black">
-                        {["Portfolio", "Site", "EDGE ID no.", "NMI #", "Serial #"].map(column => (
-                          <th key={column} className="px-4 py-3 text-left uppercase tracking-wider">{column}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedRequest.devices.map(device => (
-                        <tr key={device.edgeId} className="border-b border-gray-300 last:border-b-0">
-                          <td className="px-4 py-3">{device.portfolio}</td>
-                          <td className="px-4 py-3">{device.site}</td>
-                          <td className="px-4 py-3 font-bold">{device.edgeId}</td>
-                          <td className="px-4 py-3">{device.nmi}</td>
-                          <td className="px-4 py-3">{device.serial}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-          </>
         )}
-      </div>
     </div>
   );
 }
+
+function FilterChoices({ label, options, selected, onToggle }: {
+  label: string;
+  options: string[];
+  selected: string[];
+  onToggle: (option: string) => void;
+}) {
+  const allOn = selected.length === options.length;
+  return (
+    <div className="epx-filter-menu" role="menu" aria-label={label}>
+      <div>Filter</div>
+      <button type="button" onClick={() => onToggle("all")}>
+        <span className={allOn ? "epx-filter-box is-on" : "epx-filter-box"}>{allOn && <img src="/assets/reupload/tick.svg" alt="" />}</span>
+        Select all
+      </button>
+      {options.map(option => {
+        const on = selected.includes(option);
+        return (
+          <button key={option} type="button" onClick={() => onToggle(option)}>
+            <span className={on ? "epx-filter-box is-on" : "epx-filter-box"}>{on && <img src="/assets/reupload/tick.svg" alt="" />}</span>
+            {option}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 
 function ReuploadField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -1727,11 +2692,31 @@ function Sidebar({ activePage, onNavigate, onOpenRequestHistory }: {
   onNavigate: (page: Page) => void;
   onOpenRequestHistory: () => void;
 }) {
+  const [collapsed, setCollapsed] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [dataMenuOpen, setDataMenuOpen] = useState(false);
+  const dataMenuRef = useRef<HTMLDivElement>(null);
+  const notificationsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!dataMenuOpen) return;
+    function handle(event: PointerEvent) {
+      if (!dataMenuRef.current?.contains(event.target as Node)) setDataMenuOpen(false);
+    }
+    document.addEventListener("pointerdown", handle);
+    return () => document.removeEventListener("pointerdown", handle);
+  }, [dataMenuOpen]);
+  useEffect(() => {
+    if (!notificationsOpen) return;
+    function handle(event: PointerEvent) {
+      if (!notificationsRef.current?.contains(event.target as Node)) setNotificationsOpen(false);
+    }
+    document.addEventListener("pointerdown", handle);
+    return () => document.removeEventListener("pointerdown", handle);
+  }, [notificationsOpen]);
   return (
-    <aside className="epx-sidebar flex flex-shrink-0 flex-col">
+    <aside className={`epx-sidebar flex flex-shrink-0 flex-col${collapsed ? " is-collapsed" : ""}`}>
       <div className="epx-brand">
-        <img src="/assets/9d714.png" alt="epx" className="epx-logo" />
+        <img src={collapsed ? "/assets/epx-mark.png" : "/assets/9d714.png"} alt="epx" className="epx-logo" />
       </div>
 
       <div className="epx-site-switcher">
@@ -1747,101 +2732,132 @@ function Sidebar({ activePage, onNavigate, onOpenRequestHistory }: {
       </div>
 
       <nav className="epx-nav flex flex-col" aria-label="Primary navigation">
-        <div>Portfolio</div>
-        <button type="button">
+        <div className="epx-nav-label">Portfolio</div>
+        <button type="button" aria-label="Portfolio view">
           <img src="/assets/device-management/e89d0.svg" alt="" />
-          Portfolio view
+          <span className="epx-nav-text">Portfolio view</span>
         </button>
-        <button type="button">
+        <button type="button" aria-label="Portfolio management">
           <img src="/assets/device-management/3f3e0.svg" alt="" />
-          <span>Portfolio management</span>
+          <span className="epx-nav-text">Portfolio management</span>
           <span className="epx-nav-badge">12</span>
         </button>
 
-        <div>Site</div>
-        <button type="button">
+        <div className="epx-nav-label">Site</div>
+        <button type="button" aria-label="Monthly records">
           <img src="/assets/device-management/a4560.svg" alt="" />
-          Monthly records
+          <span className="epx-nav-text">Monthly records</span>
         </button>
         <button
           type="button"
+          aria-label="Device management"
           onClick={() => onNavigate("devices")}
           className={activePage === "devices" ? "is-active" : ""}
           aria-current={activePage === "devices" ? "page" : undefined}
         >
           <img src="/assets/device-management/eb1ac.svg" alt="" />
-          Device management
+          <span className="epx-nav-text">Device management</span>
         </button>
 
-        <div>Operations</div>
-        <button
-          type="button"
-          onClick={() => onNavigate("data-management")}
-          className={activePage !== "devices" ? "is-active" : ""}
-          aria-current={activePage === "data-management" ? "page" : undefined}
-        >
-          <img src="/assets/device-management/e28cc.svg" alt="" />
-          Data management
-        </button>
-        {activePage !== "devices" && (
-          <div className="epx-subnav">
-            <button type="button" onClick={() => onNavigate("reupload")} aria-current={activePage === "reupload" ? "page" : undefined}>NEM12 data reupload</button>
-            <button type="button" onClick={() => onNavigate("nem12-log")} aria-current={activePage === "nem12-log" ? "page" : undefined}>NEM12 data log</button>
-            <button type="button" onClick={() => onNavigate("incident-log")} aria-current={activePage === "incident-log" ? "page" : undefined}>Incident issue log</button>
-          </div>
-        )}
+        <div className="epx-nav-label">Operations</div>
+        <div className="epx-data-menu" ref={dataMenuRef}>
+          <button
+            type="button"
+            aria-label="Data management"
+            aria-expanded={dataMenuOpen}
+            className={dataMenuOpen || activePage === "reupload" ? "is-active" : ""}
+            onClick={() => setDataMenuOpen(open => !open)}
+          >
+            <img src="/assets/device-management/e28cc.svg" alt="" />
+            <span className="epx-nav-text">Data management</span>
+            <img className="epx-nav-chevron" src="/assets/device-management/a23c4.svg" alt="" />
+          </button>
+          {dataMenuOpen && (
+            <div className="epx-data-submenu" role="menu">
+              <span>Incident issue log (Out of scope)</span>
+              <button
+                type="button"
+                role="menuitem"
+                aria-current={activePage === "reupload" ? "page" : undefined}
+                onClick={() => {
+                  onNavigate("reupload");
+                  setDataMenuOpen(false);
+                }}
+              >
+                NEM12 Data reupload
+              </button>
+              <span>Data ingestion log (Out of scope)</span>
+            </div>
+          )}
+        </div>
       </nav>
 
       <div className="epx-sidebar-footer">
         <div className="epx-edge-link">
-          <button type="button">
+          <button type="button" aria-label="Edge Classic">
             <img src="/assets/device-management/9824b.svg" alt="" />
-            Edge Classic
+            <span className="epx-nav-text">Edge Classic</span>
           </button>
           <img src="/assets/device-management/6c665.svg" alt="" />
         </div>
-        <div className="epx-user-row">
+        <div className="epx-user-row" ref={notificationsRef}>
           {notificationsOpen && (
-            <div className="epx-notifications-popover">
-              <div className="flex items-center justify-between border-b border-black px-3 py-2">
-                <div className="text-xs font-bold uppercase tracking-wider">Notifications</div>
-                <button
-                  type="button"
-                  onClick={() => setNotificationsOpen(false)}
-                  className="text-base leading-none text-gray-500 hover:text-black"
-                  aria-label="Close notifications"
-                >
-                  ×
+            <div className="epx-notifications-popover" role="dialog" aria-label="Notifications">
+              <div className="epx-notifications-header">
+                <span>Notifications</span>
+                <button type="button" onClick={() => setNotificationsOpen(false)} aria-label="Close notifications">
+                  <img src="/assets/reupload/notify-close.svg" alt="" />
                 </button>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  onOpenRequestHistory();
-                  setNotificationsOpen(false);
-                }}
-                className="flex w-full items-start gap-3 px-3 py-3 text-left hover:bg-gray-100"
-              >
-                <span className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-black" />
-                <span>
-                  <span className="block text-xs font-bold">Re-upload DR-2031 completed</span>
-                  <span className="mt-1 block text-xs text-gray-500">Yesterday</span>
-                </span>
-              </button>
+              {[
+                ["Re-upload DR-2031 completed", "Yesterday"],
+                ["Re-upload DR-2030 completed", "Yesterday"],
+                ["Re-upload DR-2027 failed", "5 days ago"],
+              ].map(([title, when]) => (
+                <button
+                  key={title}
+                  type="button"
+                  className="epx-notification"
+                  onClick={() => {
+                    onOpenRequestHistory();
+                    setNotificationsOpen(false);
+                  }}
+                >
+                  <span className="epx-notification-dot" />
+                  <span>
+                    <strong>{title}</strong>
+                    <small>{when}</small>
+                  </span>
+                </button>
+              ))}
             </div>
           )}
-          <img src="/assets/device-management/c6f2f.svg" alt="" />
-          <span>John Doe</span>
-          <button
-            type="button"
-            onClick={() => setNotificationsOpen(open => !open)}
-            aria-label="Open notifications"
-          >
-            <img src="/assets/device-management/01b43.svg" alt="" />
-          </button>
+          <span className="epx-user-avatar" aria-hidden="true"><span>JD</span></span>
+          <span className="epx-nav-text">John Doe</span>
+          <div className="epx-sidebar-divider" aria-hidden="true" />
+          <div className="epx-notifications">
+            <button
+              type="button"
+              onClick={() => setNotificationsOpen(open => !open)}
+              aria-label="Open notifications"
+              aria-expanded={notificationsOpen}
+            >
+              <img src="/assets/device-management/01b43.svg" alt="" />
+            </button>
+          </div>
         </div>
       </div>
-      <button className="epx-sidebar-toggle" type="button" aria-label="Collapse navigation">
+      <button
+        className="epx-sidebar-toggle"
+        type="button"
+        aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+        aria-expanded={!collapsed}
+        onClick={() => {
+          setCollapsed(open => !open);
+          setDataMenuOpen(false);
+          setNotificationsOpen(false);
+        }}
+      >
         <img src="/assets/device-management/5a8fa.svg" alt="" />
       </button>
     </aside>
@@ -1872,6 +2888,71 @@ function NavIcon({ type }: {
 
 // ─── Meter Detail Drawer ────────────────────────────────────────────────────
 
+function hasSupplierContact(source: string) {
+  return !["smartcom", "smartcom ii", "edge g6"].includes(source.toLowerCase());
+}
+
+function technicalDetailRows(meter: Meter) {
+  const source = meter.source.toLowerCase().replace(/\s+/g, "");
+  const row = (label: string, value: string, mono = false) => ({ label, value, mono });
+
+  if (source === "smartcom" || source === "smartcomii") {
+    return [
+      row("API Device ID", meter.apiDeviceId || "N/A", true),
+      row("Smartcom/IO Logik ID", meter.smartcomId || "xxx", true),
+      row("String number", meter.stringNumber || "xxx"),
+      row("Input number", meter.inputNumber || "xxx"),
+      row("Pulse ratio", meter.pulseRatio || "xxx"),
+    ];
+  }
+
+  if (source === "captis") {
+    return [
+      row("Cumulocity ID", meter.cumulocityId || (meter.captisNumber !== "—" ? meter.captisNumber : "—"), true),
+      row("API Parameter", meter.apiParameter || "Pulse1_Total"),
+    ];
+  }
+
+  if (source === "nem12") {
+    return [
+      row("NMI no.", meter.nmiNo || "—", true),
+      row("Serial no.", meter.serialNo || "—", true),
+      row("Suffix", meter.nmiSuffix || "xx"),
+    ];
+  }
+
+  if (source === "edgeg6") {
+    return [
+      row("API Device ID", meter.apiDeviceId || "N/A", true),
+      row("Serial number", meter.serialNo || "xxx", true),
+      row("String number", meter.stringNumber || meter.dataFormat || "xxx"),
+      row("Meter address", meter.comAddress || "—", true),
+      row("Baud rate", meter.baudRate || "xxx"),
+      row("CT ratio", meter.ctRatio?.replace(":", " / ") || "—"),
+    ];
+  }
+
+  if (source === "wattwatchers") {
+    return [
+      row("API Device ID", meter.apiDeviceId || "—", true),
+      row("Channels", meter.channels || "—"),
+    ];
+  }
+
+  if (source === "bacnet_1" || source === "bacnet1") {
+    return [
+      row("API Device ID", meter.apiDeviceId || "N/A", true),
+      row("BMS Module IP Address", meter.comAddress || "—", true),
+      row("BMS Connection Point Details", meter.bmsConnectionPoint || "xxx"),
+    ];
+  }
+
+  return [
+    row("Data format", meter.dataFormat || "—"),
+    row("COM address", meter.comAddress || "—", true),
+  ];
+}
+
 function MeterDrawer({ meter, onClose, onPatch }: {
   meter: Meter;
   onClose: () => void;
@@ -1882,7 +2963,10 @@ function MeterDrawer({ meter, onClose, onPatch }: {
   const [draft, setDraft] = useState<OperationalDraft>(saved);
   const [supplier, setSupplier] = useState<SupplierDraft>(savedSupplier);
   const [editingSupplier, setEditingSupplier] = useState(false);
+  const [copyToast, setCopyToast] = useState(false);
+  const [savedUndo, setSavedUndo] = useState<Partial<Meter> | null>(null);
   const [editingSerial, setEditingSerial] = useState(false);
+  const [identityKind, setIdentityKind] = useState<"serial" | "captis">("serial");
   const [serialTab, setSerialTab] = useState<"update" | "history">("update");
   const [newSerial, setNewSerial] = useState("");
   const [serialValidFrom, setSerialValidFrom] = useState("");
@@ -1890,53 +2974,108 @@ function MeterDrawer({ meter, onClose, onPatch }: {
     serialNo: string;
     validFrom: string;
   } | null>(null);
+  const [serialStep, setSerialStep] = useState<"form" | "reprocess" | "submitted">("form");
+  const [serialTouched, setSerialTouched] = useState(false);
+  const [serialRequestId, setSerialRequestId] = useState("");
   const [configuringSource, setConfiguringSource] = useState(false);
-  const [configSource, setConfigSource] = useState<"NEM12" | "Captis" | "">("");
+  const [configSource, setConfigSource] = useState<"NEM12" | "Captis">("NEM12");
   const [configNmi, setConfigNmi] = useState("");
   const [configSerial, setConfigSerial] = useState("");
   const [configValidFrom, setConfigValidFrom] = useState("");
   const [configCaptisId, setConfigCaptisId] = useState("");
   const [configApiId, setConfigApiId] = useState("");
-  const [configDataFormat, setConfigDataFormat] = useState("");
+  const [configApiOpen, setConfigApiOpen] = useState(false);
+  const [confirmReconfig, setConfirmReconfig] = useState(false);
+  const configApiRef = useRef<HTMLLabelElement>(null);
+  const edgeReconfig = meter.source === "Edge G6";
+
+  useEffect(() => {
+    if (!configApiOpen) return;
+    function handlePointerDown(event: PointerEvent) {
+      if (!configApiRef.current?.contains(event.target as Node)) setConfigApiOpen(false);
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [configApiOpen]);
 
   const configValid = configSource === "NEM12"
-    ? Boolean(configNmi && configSerial && configValidFrom)
-    : configSource === "Captis"
-      ? Boolean(configCaptisId && configApiId && configDataFormat)
-      : false;
+    ? Boolean(configNmi.trim() && configSerial.trim() && configValidFrom)
+    : Boolean(configCaptisId.trim() && configApiId.trim() && configValidFrom);
 
   function openConfigureSource() {
-    setConfigSource("");
+    setConfigSource("NEM12");
     setConfigNmi("");
     setConfigSerial("");
     setConfigValidFrom("");
     setConfigCaptisId("");
     setConfigApiId("");
-    setConfigDataFormat("");
+    setConfigApiOpen(false);
+    setConfirmReconfig(false);
     setConfiguringSource(true);
   }
 
-  function saveConfigureSource() {
-    if (!configValid) return;
-    onPatch({
-      source: configSource,
-      dataFormat: configSource === "NEM12" ? "NEM12" : configDataFormat,
-      nmiNo: configSource === "NEM12" ? configNmi : "—",
-      serialNo: configSource === "NEM12" ? configSerial : "—",
-    });
+  function closeConfigureSource() {
     setConfiguringSource(false);
+    setConfirmReconfig(false);
+    setConfigApiOpen(false);
+  }
+
+  function reconfigDateLabel() {
+    if (!configValidFrom) return "DD-MM-YYYY";
+    const [year, month, day] = configValidFrom.split("-");
+    return `${day}-${month}-${year}`;
+  }
+
+  function saveConfigureSource(notify = false) {
+    if (!configValid || !configSource) return;
+    if (notify) {
+      setSavedUndo({
+        source: meter.source,
+        dataFormat: meter.dataFormat,
+        nmiNo: meter.nmiNo,
+        serialNo: meter.serialNo,
+        captisNumber: meter.captisNumber,
+        cumulocityId: meter.cumulocityId,
+        apiParameter: meter.apiParameter,
+      });
+    }
+    onPatch({
+      source: configSource === "Captis" ? "CAPTIS" : "NEM12",
+      dataFormat: configSource === "NEM12" ? "NEM12" : "Captis API",
+      nmiNo: configSource === "NEM12" ? configNmi : meter.nmiNo,
+      serialNo: configSource === "NEM12" ? configSerial : meter.serialNo,
+      captisNumber: configSource === "Captis" ? configCaptisId : meter.captisNumber,
+      cumulocityId: configSource === "Captis" ? configCaptisId : meter.cumulocityId,
+      apiParameter: configSource === "Captis" ? configApiId : meter.apiParameter,
+    });
+    closeConfigureSource();
   }
   const operationalDirty = JSON.stringify(draft) !== JSON.stringify(saved);
   const supplierDirty = JSON.stringify(supplier) !== JSON.stringify(savedSupplier);
   const dirty = operationalDirty;
-  const serialIsValid = /^\d{12}$/.test(newSerial) && newSerial !== meter.serialNo && Boolean(serialValidFrom);
-
+  const serialModalDirty = serialStep !== "submitted" && Boolean(newSerial || serialValidFrom || pendingSerialUpdate);
+  const configModalDirty = Boolean(
+    configSource !== "NEM12" ||
+    configNmi || configSerial || configValidFrom || configCaptisId || configApiId ||
+    confirmReconfig
+  );
+  const settingsComplete =
+    (!draft.critical || Boolean(draft.criticalReason)) &&
+    (!draft.excluded || Boolean(
+      draft.excludedFrom &&
+      (draft.excludedNoEndDate || draft.excludedTo) &&
+      draft.excludedReason
+    )) &&
+    (!hasSupplierContact(meter.source) || !draft.notifications || Boolean(
+      (draft.notificationScope || "This device only") &&
+      draft.notificationComment.trim()
+    ));
   function updateOperational(patch: Partial<OperationalDraft>) {
     setDraft(current => ({ ...current, ...patch }));
   }
 
   function saveChanges() {
-    if (!dirty) return;
+    if (!dirty || !settingsComplete) return;
     onPatch({
       critical: draft.critical ? "Yes" : "No",
       criticalReason: draft.criticalReason,
@@ -1945,8 +3084,10 @@ function MeterDrawer({ meter, onClose, onPatch }: {
       excludedTo: draft.excludedNoEndDate ? "" : draft.excludedTo,
       excludedNoEndDate: draft.excludedNoEndDate,
       excludedReason: draft.excludedReason,
-      notifications: draft.notifications ? "Enabled" : "Disabled",
+      notifications: draft.notifications ? "Disabled" : "Enabled",
       notificationComment: draft.notificationComment,
+      notificationScope: draft.notificationScope || "This device only",
+      internalOnly: draft.internalOnly,
     });
   }
 
@@ -1970,14 +3111,19 @@ function MeterDrawer({ meter, onClose, onPatch }: {
       contactName: supplier.contactName,
       contactEmail: supplier.contactEmail,
       contactPhone: supplier.contactPhone,
+      supplierName: supplier.supplierName,
     });
     setEditingSupplier(false);
   }
 
-  function openSerialEditor(tab: "update" | "history") {
+  function openSerialEditor(kind: "serial" | "captis", tab: "update" | "history") {
+    setIdentityKind(kind);
     setSerialTab(tab);
     setNewSerial("");
     setSerialValidFrom("");
+    setSerialTouched(false);
+    setSerialStep("form");
+    setPendingSerialUpdate(null);
     setEditingSerial(true);
   }
 
@@ -1985,6 +3131,9 @@ function MeterDrawer({ meter, onClose, onPatch }: {
     setEditingSerial(false);
     setNewSerial("");
     setSerialValidFrom("");
+    setSerialTouched(false);
+    setSerialStep("form");
+    setPendingSerialUpdate(null);
   }
 
   function saveSerial() {
@@ -1993,11 +3142,26 @@ function MeterDrawer({ meter, onClose, onPatch }: {
       serialNo: newSerial,
       validFrom: serialValidFrom,
     });
-    setEditingSerial(false);
+    setSerialStep("reprocess");
   }
 
-  function confirmSerialUpdate() {
+  function applySerialUpdate() {
     if (!pendingSerialUpdate) return;
+    if (isCaptisIdentity) {
+      onPatch({
+        captisNumber: pendingSerialUpdate.serialNo,
+        captisValidFrom: pendingSerialUpdate.validFrom,
+        captisHistory: [
+          {
+            captisNumber: meter.captisNumber,
+            validFrom: meter.captisValidFrom ?? "2026-05-01",
+            validTo: pendingSerialUpdate.validFrom,
+          },
+          ...(meter.captisHistory ?? []),
+        ],
+      });
+      return;
+    }
     onPatch({
       serialNo: pendingSerialUpdate.serialNo,
       serialValidFrom: pendingSerialUpdate.validFrom,
@@ -2010,10 +3174,43 @@ function MeterDrawer({ meter, onClose, onPatch }: {
         ...(meter.serialHistory ?? []),
       ],
     });
-    setPendingSerialUpdate(null);
-    setNewSerial("");
-    setSerialValidFrom("");
   }
+
+  function saveSerialWithoutReprocess() {
+    setSavedUndo(isCaptisIdentity
+      ? {
+          captisNumber: meter.captisNumber,
+          captisValidFrom: meter.captisValidFrom,
+          captisHistory: meter.captisHistory,
+        }
+      : {
+          serialNo: meter.serialNo,
+          serialValidFrom: meter.serialValidFrom,
+          serialHistory: meter.serialHistory,
+        });
+    applySerialUpdate();
+    closeSerialEditor();
+  }
+
+  function saveSerialAndReprocess() {
+    applySerialUpdate();
+    setSerialRequestId(`DR-${2000 + meter.id}`);
+    setSerialStep("submitted");
+  }
+
+  function serialDateLabel() {
+    const value = pendingSerialUpdate?.validFrom ?? serialValidFrom;
+    if (!value) return "DD-MM-YYYY";
+    const [year, month, day] = value.split("-");
+    return `${day}-${month}-${year}`;
+  }
+
+  const isCaptisIdentity = identityKind === "captis";
+  const currentIdentity = isCaptisIdentity ? meter.captisNumber : meter.serialNo;
+  const serialIsValid = /^\d{12}$/.test(newSerial) && newSerial !== currentIdentity && Boolean(serialValidFrom);
+  const serialInvalid = newSerial.length > 0
+    && (newSerial === currentIdentity || !/^\d{12}$/.test(newSerial))
+    && (serialTouched || newSerial.length >= 12);
 
   return (
     <div className="epx-drawer">
@@ -2023,16 +3220,16 @@ function MeterDrawer({ meter, onClose, onPatch }: {
         <div className="epx-drawer-title-row">
           <div>
             <div className="epx-drawer-title">{meter.name}</div>
-            <div className="epx-drawer-id">{meter.edgeId}</div>
+            <div className="epx-drawer-id">{formatEdgeId(meter.edgeId)}</div>
           </div>
           <button type="button" onClick={onClose} aria-label="Close device details">
             <img src="/assets/device-panel/a89cc.svg" alt="" />
           </button>
         </div>
         <div className="epx-drawer-status">
-          <span className={meter.online === "Online" ? "is-online" : "is-offline"}>
+          <span className={onlineValue(meter) === "Online" ? "is-online" : "is-offline"}>
             <span />
-            {meter.online}
+            {onlineValue(meter)}
           </span>
           <span>Last data {meter.lastData}</span>
         </div>
@@ -2047,54 +3244,72 @@ function MeterDrawer({ meter, onClose, onPatch }: {
               value={meter.type}
             />
             <DeviceInfoTile icon="/assets/device-panel/f00de.svg" label="Data source" value={meter.source} />
-            <DeviceInfoTile icon="/assets/device-panel/f2c12.svg" label="Comm. status" value={meter.status} />
+            <DeviceInfoTile
+              icon={meter.status === "In progress" || meter.status === "Inactive" ? "/assets/device-panel/hourglass-half.svg" : "/assets/device-panel/hourglass-full.svg"}
+              label="Under comm."
+              value={meter.status === "In progress" || meter.status === "Inactive" ? "In progress" : "Done"}
+            />
           </div>
         </DrawerSection>
 
         <DrawerSection
           title="Technical details"
           action={
-            <button
-              type="button"
-              onClick={meter.source === "NEM12"
-                ? () => openSerialEditor("update")
-                : openConfigureSource}
-            >
-              Edit
-            </button>
+            meter.source.toLowerCase().replace(/\s+/g, "") === "wattwatchers" ? undefined : (
+              <button
+                type="button"
+                onClick={meter.source.toLowerCase() === "nem12"
+                  ? () => openSerialEditor("serial", "update")
+                  : meter.source.toLowerCase() === "captis"
+                    ? () => openSerialEditor("captis", "update")
+                    : openConfigureSource}
+              >
+                Edit
+              </button>
+            )
           }
         >
           <div className="epx-detail-card">
-            <MetaRow label="NMI no." value={meter.nmiNo} mono />
-            <MetaRow label="Serial no." value={meter.serialNo} mono />
-            <MetaRow label="CT ratio" value={meter.ctRatio?.replace(":", " / ") ?? "—"} />
-            <MetaRow label="Pulse rate" value={meter.pulseRatio ?? "1000 imp/kWh"} />
-            <MetaRow label="Data format" value={meter.dataFormat} />
-            <MetaRow label="COM address" value={meter.comAddress} mono />
+            {technicalDetailRows(meter).map(row => (
+              <MetaRow key={row.label} label={row.label} value={row.value} mono={row.mono} />
+            ))}
           </div>
         </DrawerSection>
 
-        <DrawerSection
-          title="Supplier contact"
-          action={<button type="button" onClick={openSupplierEditor}>Edit</button>}
-        >
-          <div className="epx-contact-card">
-            <div className="epx-contact-person">
-              <span>{meter.contactName === "—" ? "—" : meter.contactName.split(/\s+/).map(part => part[0]).join("").slice(0, 2)}</span>
-              <div>
-                <strong>{meter.contactName}</strong>
-                <small>{meter.source}</small>
+        {hasSupplierContact(meter.source) && (
+          <DrawerSection
+            title="Supplier contact"
+            action={<button type="button" onClick={openSupplierEditor}>Edit</button>}
+          >
+            <div className="epx-contact-card">
+              <div className="epx-contact-person">
+                <span>{meter.contactName === "—" ? "—" : meter.contactName.split(/\s+/).map(part => part[0]).join("").slice(0, 2)}</span>
+                <div>
+                  <strong>{meter.contactName}</strong>
+                  <small>{supplierLabel(meter)}</small>
+                </div>
               </div>
+              <ContactRow label="Email" value={meter.contactEmail} onCopied={() => setCopyToast(true)} />
+              <ContactRow label="Phone" value={meter.contactPhone} onCopied={() => setCopyToast(true)} />
             </div>
-            <ContactRow label="Email" value={meter.contactEmail} />
-            <ContactRow label="Phone" value={meter.contactPhone} />
-          </div>
-        </DrawerSection>
+          </DrawerSection>
+        )}
 
         <DrawerSection title="Settings">
-          <OperationalForm draft={draft} onChange={updateOperational} />
+          <OperationalForm draft={draft} source={meter.source} onChange={updateOperational} />
         </DrawerSection>
       </div>
+
+      {copyToast && <CopyToast onClose={() => setCopyToast(false)} />}
+      {savedUndo && (
+        <SavedToast
+          onUndo={() => {
+            onPatch(savedUndo);
+            setSavedUndo(null);
+          }}
+          onClose={() => setSavedUndo(null)}
+        />
+      )}
 
       <div className="epx-drawer-footer">
         <button
@@ -2104,14 +3319,19 @@ function MeterDrawer({ meter, onClose, onPatch }: {
         >
           Cancel
         </button>
-        <button
-          type="button"
-          onClick={saveChanges}
-          disabled={!dirty}
-          className="epx-drawer-save"
+        <span
+          className={`epx-drawer-save-wrap${dirty && !settingsComplete ? " has-tooltip" : ""}`}
+          data-tooltip="Not all fields in the settings you actioned have been completed"
         >
-          Save
-        </button>
+          <button
+            type="button"
+            onClick={saveChanges}
+            disabled={!dirty || !settingsComplete}
+            className="epx-drawer-save"
+          >
+            Save
+          </button>
+        </span>
       </div>
 
       {editingSupplier && (
@@ -2120,52 +3340,63 @@ function MeterDrawer({ meter, onClose, onPatch }: {
           role="dialog"
           aria-modal="true"
           aria-labelledby="supplier-modal-title"
+          onPointerDown={event => {
+            if (event.target === event.currentTarget && !supplierDirty) closeSupplierEditor();
+          }}
         >
-          <div className="w-full max-w-sm border-2 border-black bg-white">
-            <div className="border-b border-black px-5 py-4">
-              <div id="supplier-modal-title" className="text-sm font-bold uppercase tracking-wide">
-                Edit supplier contact
+          <div className="epx-supplier-modal">
+            <div className="epx-supplier-modal-header">
+              <div>
+                <div id="supplier-modal-title">Edit Supplier Contact</div>
+                <p>Update supplier contact details used for notifications and communications</p>
               </div>
+              <button type="button" onClick={closeSupplierEditor} aria-label="Close">
+                <img src="/assets/device-panel/a89cc.svg" alt="" />
+              </button>
             </div>
-            <div className="flex flex-col gap-3 px-5 py-4">
-              <FieldLabel text="Contact">
+            <div className="epx-supplier-modal-body">
+              <label>
+                <span>Contact name</span>
                 <input
                   type="text"
                   value={supplier.contactName}
                   onChange={event => setSupplier(current => ({ ...current, contactName: event.target.value }))}
-                  className="w-full border border-gray-400 bg-white px-2 py-1.5 text-xs normal-case tracking-normal outline-none focus:border-black"
                 />
-              </FieldLabel>
-              <FieldLabel text="Email">
+              </label>
+              <label>
+                <span>Email</span>
                 <input
                   type="email"
                   value={supplier.contactEmail}
                   onChange={event => setSupplier(current => ({ ...current, contactEmail: event.target.value }))}
-                  className="w-full border border-gray-400 bg-white px-2 py-1.5 text-xs normal-case tracking-normal outline-none focus:border-black"
                 />
-              </FieldLabel>
-              <FieldLabel text="Phone">
+              </label>
+              <label>
+                <span>Supplier</span>
+                <input
+                  type="text"
+                  value={supplier.supplierName}
+                  onChange={event => setSupplier(current => ({ ...current, supplierName: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>Phone</span>
                 <input
                   type="tel"
                   value={supplier.contactPhone}
                   onChange={event => setSupplier(current => ({ ...current, contactPhone: event.target.value }))}
-                  className="w-full border border-gray-400 bg-white px-2 py-1.5 text-xs normal-case tracking-normal outline-none focus:border-black"
                 />
-              </FieldLabel>
+              </label>
             </div>
-            <div className="flex justify-end gap-2 border-t border-black px-5 py-3">
-              <button
-                type="button"
-                onClick={closeSupplierEditor}
-                className="border border-gray-400 px-3 py-1.5 text-xs hover:border-black"
-              >
+            <div className="epx-supplier-modal-footer">
+              <button type="button" onClick={closeSupplierEditor} className="epx-drawer-cancel">
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={saveSupplier}
                 disabled={!supplierDirty}
-                className="border border-black bg-black px-3 py-1.5 text-xs text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-200 disabled:text-gray-400"
+                className="epx-drawer-save"
               >
                 Save
               </button>
@@ -2176,291 +3407,279 @@ function MeterDrawer({ meter, onClose, onPatch }: {
 
       {editingSerial && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="epx-add-device-backdrop"
           role="dialog"
           aria-modal="true"
           aria-labelledby="serial-modal-title"
+          onPointerDown={event => {
+            if (event.target === event.currentTarget && !serialModalDirty) closeSerialEditor();
+          }}
         >
-          <div className="w-full max-w-sm border-2 border-black bg-white">
-            <div className="border-b border-black px-5 py-4">
-              <div id="serial-modal-title" className="text-sm font-bold uppercase tracking-wide">
-                Serial number
+          <div className={`epx-reconfig-dialog${serialStep === "form" ? "" : " is-confirm"}`}>
+            <div className="epx-add-device-header">
+              <div>
+                <div id="serial-modal-title">{isCaptisIdentity ? "Captis Cumulocity ID" : "NEM12 Serial number"}</div>
+                <p>{isCaptisIdentity ? "Update the ID or view its change history" : "Update the serial number or view its change history"}</p>
               </div>
-            </div>
-            <div className="grid grid-cols-2 border-b border-black">
               <button
                 type="button"
-                onClick={() => setSerialTab("update")}
-                className={`border-r border-black px-4 py-2 text-left text-xs ${serialTab === "update" ? "bg-black text-white" : "hover:bg-gray-100"}`}
+                onClick={serialStep === "reprocess" ? () => setSerialStep("form") : closeSerialEditor}
+                aria-label="Close"
               >
-                Update
-              </button>
-              <button
-                type="button"
-                onClick={() => setSerialTab("history")}
-                className={`px-4 py-2 text-left text-xs ${serialTab === "history" ? "bg-black text-white" : "hover:bg-gray-100"}`}
-              >
-                History
+                <img src="/assets/add-device/7bf08.svg" alt="" />
               </button>
             </div>
-            {serialTab === "update" ? (
-              <>
-                <div className="flex flex-col gap-3 px-5 py-4">
-                  <FieldLabel text="Current serial number">
-                    <div className="border border-gray-300 bg-gray-100 px-2 py-1.5 text-xs font-mono normal-case tracking-normal text-gray-600">
-                      {meter.serialNo}
-                    </div>
-                  </FieldLabel>
-                  <FieldLabel text="New serial number">
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={12}
-                      value={newSerial}
-                      onChange={event => setNewSerial(event.target.value.replace(/\D/g, ""))}
-                      placeholder="Enter 12 digits"
-                      className="w-full border border-gray-400 bg-white px-2 py-1.5 text-xs normal-case tracking-normal outline-none placeholder:text-gray-400 focus:border-black"
-                    />
-                  </FieldLabel>
-                  <FieldLabel text="Valid from">
-                    <input
-                      type="date"
-                      value={serialValidFrom}
-                      onChange={event => setSerialValidFrom(event.target.value)}
-                      className="w-full border border-gray-400 bg-white px-2 py-1.5 text-xs normal-case tracking-normal outline-none focus:border-black"
-                    />
-                  </FieldLabel>
-                </div>
-                <div className="flex justify-end gap-2 border-t border-black px-5 py-3">
-                  <button
-                    type="button"
-                    onClick={closeSerialEditor}
-                    className="border border-gray-400 px-3 py-1.5 text-xs hover:border-black"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={saveSerial}
-                    disabled={!serialIsValid}
-                    className="border border-black bg-black px-3 py-1.5 text-xs text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-200 disabled:text-gray-400"
-                  >
-                    Save
-                  </button>
-                </div>
-              </>
+            {serialStep === "submitted" ? (
+              <div className="epx-serial-success">
+                <h3>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9" stroke="#12B76A" strokeWidth="1.5" />
+                    <path d="M8 12.2 10.8 15 16 9.5" stroke="#12B76A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Re-upload request submitted
+                </h3>
+                <p>Request ID: <strong>{serialRequestId}</strong></p>
+                <p>Data will be processed in the background, you can monitor its progress on the main page. We will email you when processing is complete.</p>
+              </div>
+            ) : serialStep === "reprocess" && pendingSerialUpdate ? (
+              <p className="epx-add-device-confirm">
+                {isCaptisIdentity
+                  ? <>The cumulocity ID will be updated to <strong>{pendingSerialUpdate.serialNo}</strong>. Would you like to reprocess Captis data from <strong>{serialDateLabel()}</strong>?</>
+                  : <>The serial number will be updated to <strong>{pendingSerialUpdate.serialNo}</strong>. Would you like to reprocess NEM12 data from <strong>{serialDateLabel()}</strong>?</>}
+              </p>
             ) : (
-              <>
-                <div className="px-5 py-4">
-                  <div className="border border-black">
-                    <SerialHistoryRow
-                      serialNo={meter.serialNo}
-                      validFrom={meter.serialValidFrom ?? "2024-01-15"}
-                      status="Current"
-                    />
-                    {(meter.serialHistory ?? [{
-                      serialNo: String(700000000000 + meter.id * 1000 + 17),
-                      validFrom: "2022-04-01",
-                      validTo: meter.serialValidFrom ?? "2024-01-15",
-                    }]).map(entry => (
-                      <SerialHistoryRow
-                        key={`${entry.serialNo}-${entry.validFrom}`}
-                        serialNo={entry.serialNo}
-                        validFrom={entry.validFrom}
-                        validTo={entry.validTo}
-                      />
+              <div className="epx-reconfig-body">
+                <div className="epx-serial-tabs">
+                  <button type="button" className={serialTab === "update" ? "is-active" : ""} onClick={() => setSerialTab("update")}>Update</button>
+                  <button type="button" className={serialTab === "history" ? "is-active" : ""} onClick={() => setSerialTab("history")}>History</button>
+                </div>
+                {serialTab === "update" ? (
+                  <>
+                    <div className="epx-reconfig-row">
+                      <label className="epx-add-device-field">
+                        <span>{isCaptisIdentity ? "Current cumulocity ID" : "Current serial number"}</span>
+                        <input value={currentIdentity} disabled />
+                      </label>
+                      <label className={`epx-add-device-field${serialInvalid ? " is-invalid" : ""}`}>
+                        <span>{isCaptisIdentity ? "New cumulocity ID" : "New serial number"}</span>
+                        <span className={`epx-add-device-select${serialInvalid ? " is-invalid" : ""}`}>
+                          <input
+                            value={newSerial}
+                            inputMode="numeric"
+                            placeholder={isCaptisIdentity ? "Enter no." : "Enter 12 digits"}
+                            aria-invalid={serialInvalid}
+                            onBlur={() => setSerialTouched(true)}
+                            onChange={event => setNewSerial(event.target.value.replace(/\D/g, "").slice(0, 12))}
+                          />
+                          {serialInvalid && <img className="epx-field-error-icon" src="/assets/add-device/error.svg" alt="" />}
+                        </span>
+                        {serialInvalid && <p className="epx-field-error">{isCaptisIdentity ? "Invalid cumulocity ID" : "Invalid serial number"}</p>}
+                      </label>
+                    </div>
+                    <DateField label="Valid from" value={serialValidFrom} onChange={setSerialValidFrom} />
+                  </>
+                ) : (
+                  <div className="epx-serial-history">
+                    {(isCaptisIdentity
+                      ? [{
+                          id: meter.captisNumber,
+                          validFrom: meter.captisValidFrom ?? "2026-05-01",
+                          validTo: "",
+                          current: true,
+                        }, ...(meter.captisHistory ?? [{
+                          captisNumber: "700000001285",
+                          validFrom: "2025-01-15",
+                          validTo: meter.captisValidFrom ?? "2026-05-01",
+                        }, {
+                          captisNumber: "700000004017",
+                          validFrom: "2024-01-01",
+                          validTo: "2025-01-15",
+                        }]).map(entry => ({ id: entry.captisNumber, validFrom: entry.validFrom, validTo: entry.validTo, current: false }))]
+                      : [{
+                          id: meter.serialNo,
+                          validFrom: meter.serialValidFrom ?? "2024-01-15",
+                          validTo: "",
+                          current: true,
+                        }, ...(meter.serialHistory ?? [{
+                          serialNo: String(700000000000 + meter.id * 1000 + 17),
+                          validFrom: "2022-04-01",
+                          validTo: meter.serialValidFrom ?? "2024-01-15",
+                        }]).map(entry => ({ id: entry.serialNo, validFrom: entry.validFrom, validTo: entry.validTo, current: false }))]).map(entry => (
+                      <div className={`epx-serial-step${entry.current ? " is-current" : ""}`} key={`${entry.id}-${entry.validFrom}`}>
+                        <span className="epx-serial-step-rail" aria-hidden="true" />
+                        <div>
+                          <strong>{entry.id}</strong>
+                          <span>
+                            {formatHistoryDate(entry.validFrom)} — {entry.current ? "Present" : formatHistoryDate(entry.validTo)}
+                          </span>
+                        </div>
+                      </div>
                     ))}
                   </div>
-                </div>
-                <div className="flex justify-end border-t border-black px-5 py-3">
-                  <button
-                    type="button"
-                    onClick={closeSerialEditor}
-                    className="border border-black px-3 py-1.5 text-xs hover:bg-black hover:text-white"
-                  >
-                    Close
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {pendingSerialUpdate && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="reprocess-modal-title"
-          aria-describedby="reprocess-modal-description"
-        >
-          <div className="w-full max-w-sm border-2 border-black bg-white">
-            <div className="border-b border-black px-5 py-4">
-              <div id="reprocess-modal-title" className="text-sm font-bold uppercase tracking-wide">
-                Reprocess NEM12 data?
+                )}
               </div>
-            </div>
-            <div className="px-5 py-5">
-              <p id="reprocess-modal-description" className="text-xs leading-relaxed">
-                The serial number will be updated to{" "}
-                <span className="font-bold">{pendingSerialUpdate.serialNo}</span>. Would you like to
-                reprocess NEM12 data from{" "}
-                <span className="font-bold">{pendingSerialUpdate.validFrom}</span>?
-              </p>
-            </div>
-            <div className="flex flex-col-reverse gap-2 border-t border-black px-5 py-3 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={confirmSerialUpdate}
-                className="border border-black px-3 py-1.5 text-xs hover:bg-gray-100"
-              >
-                Save without reprocess
-              </button>
-              <button
-                type="button"
-                onClick={confirmSerialUpdate}
-                className="border border-black bg-black px-3 py-1.5 text-xs text-white hover:bg-gray-800"
-              >
-                Save &amp; reprocess
-              </button>
-            </div>
+            )}
+            {serialStep === "submitted" ? null : serialStep === "reprocess" ? (
+              <div className="epx-add-device-footer">
+                <button type="button" onClick={saveSerialWithoutReprocess}>Save without reprocess</button>
+                <button type="button" className="is-primary" onClick={saveSerialAndReprocess}>Save & reprocess</button>
+              </div>
+            ) : (
+              <div className="epx-add-device-footer">
+                <button type="button" onClick={closeSerialEditor}>Cancel</button>
+                <button type="button" className="is-primary" disabled={!serialIsValid || serialTab !== "update"} onClick={saveSerial}>Save</button>
+              </div>
+            )}
           </div>
         </div>
       )}
 
       {configuringSource && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="epx-add-device-backdrop"
           role="dialog"
           aria-modal="true"
           aria-labelledby="configure-source-title"
+          onPointerDown={event => {
+            if (event.target === event.currentTarget && !configModalDirty) closeConfigureSource();
+          }}
         >
-          <div className="w-full max-w-sm border-2 border-black bg-white">
-            <div className="border-b border-black px-5 py-4">
-              <div id="configure-source-title" className="text-sm font-bold uppercase tracking-wide">
-                Configure data source
-              </div>
-              <div className="mt-1 text-xs text-gray-500">
-                Select a data source for {meter.name}. This will replace the current connection.
-              </div>
-            </div>
-
-            <div className="p-5 space-y-4">
+          <div className={`epx-reconfig-dialog${confirmReconfig ? " is-confirm" : ""}`}>
+            <div className="epx-add-device-header">
               <div>
-                <div className="mb-2 text-xs font-bold uppercase tracking-wider">Data source</div>
-                <div className="grid grid-cols-2 gap-2">
-                  {(["NEM12", "Captis"] as const).map(opt => (
-                    <label
-                      key={opt}
-                      className={`flex cursor-pointer items-center gap-2 border px-3 py-2.5 text-xs ${configSource === opt ? "border-black bg-black text-white" : "border-gray-400 hover:border-black"}`}
-                    >
+                <div id="configure-source-title">
+                  {edgeReconfig ? "Reconfigure Edge device" : "Configure data source"}
+                </div>
+                <p>
+                  {edgeReconfig
+                    ? "Replace memory module connection with NEM12 or Captis device"
+                    : `Select a data source for ${meter.name}. This will replace the current connection.`}
+                </p>
+              </div>
+              <button type="button" onClick={confirmReconfig ? () => setConfirmReconfig(false) : closeConfigureSource} aria-label="Close">
+                <img src="/assets/add-device/7bf08.svg" alt="" />
+              </button>
+            </div>
+            {confirmReconfig ? (
+              <p className="epx-add-device-confirm">
+                The device data source will be changed from EDGE Memory Module to NEM12/Captis. Would you like to fetch and process data from <strong>{reconfigDateLabel()}?</strong>
+              </p>
+            ) : (
+              <div className="epx-reconfig-body">
+                <div className="epx-reconfig-row">
+                  <div className="epx-add-device-source">
+                    <span>Data source</span>
+                    <div>
+                      {(["NEM12", "Captis"] as const).map(opt => (
+                        <button
+                          type="button"
+                          key={opt}
+                          className={configSource === opt ? "is-active" : ""}
+                          onClick={() => {
+                            setConfigSource(opt);
+                            setConfigNmi("");
+                            setConfigSerial("");
+                            setConfigCaptisId("");
+                            setConfigApiId("");
+                            setConfigApiOpen(false);
+                            setConfigValidFrom("");
+                          }}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {configSource === "Captis" ? (
+                    <label className="epx-add-device-field">
+                      <span>Cumulocity ID</span>
                       <input
-                        type="radio"
-                        name="configure-source"
-                        checked={configSource === opt}
-                        onChange={() => {
-                          setConfigSource(opt);
-                          setConfigNmi("");
-                          setConfigSerial("");
-                          setConfigValidFrom("");
-                          setConfigCaptisId("");
-                          setConfigApiId("");
-                          setConfigDataFormat("");
-                        }}
-                        className="accent-black"
+                        value={configCaptisId}
+                        onChange={event => setConfigCaptisId(event.target.value.replace(/\D/g, "").slice(0, 11))}
+                        inputMode="numeric"
+                        placeholder="11 digits"
                       />
-                      {opt}
                     </label>
-                  ))}
+                  ) : (
+                    <label className="epx-add-device-field">
+                      <span>NMI number</span>
+                      <input
+                        value={configNmi}
+                        onChange={event => setConfigNmi(event.target.value.replace(/\D/g, "").slice(0, 11))}
+                        inputMode="numeric"
+                        placeholder="11 digits"
+                      />
+                    </label>
+                  )}
+                </div>
+                <div className="epx-reconfig-row">
+                  {configSource === "Captis" ? (
+                    <label className="epx-add-device-field" ref={configApiRef}>
+                      <span>API parameter</span>
+                      <span className="epx-add-device-select">
+                        <button
+                          type="button"
+                          className={configApiId ? "" : "is-placeholder"}
+                          aria-expanded={configApiOpen}
+                          aria-haspopup="listbox"
+                          onClick={() => setConfigApiOpen(open => !open)}
+                        >
+                          {configApiId || "Select parameter"}
+                        </button>
+                        <img src="/assets/add-device/988a8.svg" alt="" />
+                      </span>
+                      {configApiOpen && (
+                        <div className="epx-add-device-menu" role="listbox">
+                          {["Pulse1_Total", "Pulse2_Total"].map(option => (
+                            <button
+                              type="button"
+                              key={option}
+                              role="option"
+                              aria-selected={configApiId === option}
+                              onClick={() => {
+                                setConfigApiId(option);
+                                setConfigApiOpen(false);
+                              }}
+                            >
+                              {option}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </label>
+                  ) : (
+                    <label className="epx-add-device-field">
+                      <span>New serial number</span>
+                      <input
+                        value={configSerial}
+                        onChange={event => setConfigSerial(event.target.value.replace(/\D/g, "").slice(0, 12))}
+                        inputMode="numeric"
+                        placeholder="Enter 12 digits"
+                      />
+                    </label>
+                  )}
+                  <DateField label="Valid from" value={configValidFrom} onChange={setConfigValidFrom} />
                 </div>
               </div>
-
-              {configSource === "NEM12" && (
-                <div className="space-y-3 border-t border-gray-300 pt-4">
-                  <FieldLabel text="NMI Number">
-                    <input
-                      type="text"
-                      value={configNmi}
-                      onChange={e => setConfigNmi(e.target.value)}
-                      placeholder="e.g. NMI6301847200"
-                      className="w-full border border-gray-400 bg-white px-2 py-1.5 text-xs normal-case tracking-normal outline-none focus:border-black"
-                    />
-                  </FieldLabel>
-                  <FieldLabel text="Serial Number">
-                    <input
-                      type="text"
-                      value={configSerial}
-                      onChange={e => setConfigSerial(e.target.value)}
-                      placeholder="12-digit serial"
-                      className="w-full border border-gray-400 bg-white px-2 py-1.5 text-xs normal-case tracking-normal outline-none focus:border-black"
-                    />
-                  </FieldLabel>
-                  <FieldLabel text="Valid From">
-                    <input
-                      type="date"
-                      value={configValidFrom}
-                      onChange={e => setConfigValidFrom(e.target.value)}
-                      className="w-full border border-gray-400 bg-white px-2 py-1.5 text-xs normal-case tracking-normal outline-none focus:border-black"
-                    />
-                  </FieldLabel>
-                </div>
-              )}
-
-              {configSource === "Captis" && (
-                <div className="space-y-3 border-t border-gray-300 pt-4">
-                  <FieldLabel text="Captis Device ID">
-                    <input
-                      type="text"
-                      value={configCaptisId}
-                      onChange={e => setConfigCaptisId(e.target.value)}
-                      placeholder="CAP-XXXXX"
-                      className="w-full border border-gray-400 bg-white px-2 py-1.5 text-xs normal-case tracking-normal outline-none focus:border-black"
-                    />
-                  </FieldLabel>
-                  <FieldLabel text="API Identifier">
-                    <input
-                      type="text"
-                      value={configApiId}
-                      onChange={e => setConfigApiId(e.target.value)}
-                      placeholder="API endpoint or key"
-                      className="w-full border border-gray-400 bg-white px-2 py-1.5 text-xs normal-case tracking-normal outline-none focus:border-black"
-                    />
-                  </FieldLabel>
-                  <FieldLabel text="Data Format">
-                    <select
-                      value={configDataFormat}
-                      onChange={e => setConfigDataFormat(e.target.value)}
-                      className="w-full border border-gray-400 bg-white px-2 py-1.5 text-xs normal-case tracking-normal outline-none focus:border-black"
-                    >
-                      <option value="">Select</option>
-                      <option>Captis API</option>
-                      <option>CSV</option>
-                      <option>JSON</option>
-                      <option>XML</option>
-                    </select>
-                  </FieldLabel>
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2 border-t border-black px-5 py-3">
-              <button
-                type="button"
-                onClick={() => setConfiguringSource(false)}
-                className="border border-gray-400 px-3 py-1.5 text-xs hover:border-black"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={saveConfigureSource}
-                disabled={!configValid}
-                className="border border-black bg-black px-3 py-1.5 text-xs text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-200 disabled:text-gray-400"
-              >
-                Apply
-              </button>
-            </div>
+            )}
+            {confirmReconfig ? (
+              <div className="epx-add-device-footer">
+                <button type="button" onClick={() => saveConfigureSource(true)}>Save without process</button>
+                <button type="button" className="is-primary" onClick={() => saveConfigureSource(false)}>Save & process</button>
+              </div>
+            ) : (
+              <div className="epx-add-device-footer">
+                <button type="button" onClick={closeConfigureSource}>Cancel</button>
+                <button
+                  type="button"
+                  className="is-primary"
+                  disabled={!configValid}
+                  onClick={() => edgeReconfig ? setConfirmReconfig(true) : saveConfigureSource()}
+                >
+                  Save
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -2468,23 +3687,10 @@ function MeterDrawer({ meter, onClose, onPatch }: {
   );
 }
 
-function SerialHistoryRow({ serialNo, validFrom, validTo, status }: {
-  serialNo: string;
-  validFrom: string;
-  validTo?: string;
-  status?: string;
-}) {
-  return (
-    <div className="border-b border-gray-300 p-3 last:border-b-0">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-xs font-bold">{serialNo}</span>
-        {status && <span className="border border-black px-1.5 py-0.5 text-xs">{status}</span>}
-      </div>
-      <div className="mt-1 text-xs text-gray-500">
-        {validFrom} {validTo ? `— ${validTo}` : "— Present"}
-      </div>
-    </div>
-  );
+function formatHistoryDate(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 function DrawerSection({ title, action, children }: {
@@ -2515,7 +3721,7 @@ function DeviceInfoTile({ icon, label, value }: { icon: string; label: string; v
   );
 }
 
-function ContactRow({ label, value }: { label: string; value: string }) {
+function ContactRow({ label, value, onCopied }: { label: string; value: string; onCopied: () => void }) {
   return (
     <div className="epx-contact-row">
       <span>{label}</span>
@@ -2524,7 +3730,9 @@ function ContactRow({ label, value }: { label: string; value: string }) {
         <button
           type="button"
           aria-label={`Copy ${label.toLowerCase()}`}
-          onClick={() => navigator.clipboard?.writeText(value)}
+          onClick={() => {
+            navigator.clipboard?.writeText(value).then(onCopied).catch(() => {});
+          }}
         >
           <img src="/assets/device-panel/d7702.svg" alt="" />
         </button>
@@ -2533,17 +3741,96 @@ function ContactRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function SavedToast({ message = "Saved successfully", onUndo, onClose }: { message?: string; onUndo: () => void; onClose: () => void }) {
+  useEffect(() => {
+    const timer = window.setTimeout(onClose, 5000);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  return (
+    <div className="epx-toast" role="status">
+      <span className="epx-toast-icon" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+          <circle cx="11" cy="11" r="10" stroke="#12B76A" strokeWidth="1.5" />
+          <path d="M6.5 11.2 9.4 14.1 15.5 8" stroke="#12B76A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </span>
+      <span className="epx-toast-message">{message}</span>
+      <button type="button" className="epx-toast-undo" onClick={onUndo}>Undo</button>
+      <button type="button" className="epx-toast-close" aria-label="Dismiss" onClick={onClose}>×</button>
+    </div>
+  );
+}
+
+function CopyToast({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const timer = window.setTimeout(onClose, 4000);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  return (
+    <div className="epx-toast" role="status">
+      <span className="epx-toast-icon" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+          <circle cx="11" cy="11" r="10" stroke="#12B76A" strokeWidth="1.5" />
+          <path d="M6.5 11.2 9.4 14.1 15.5 8" stroke="#12B76A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </span>
+      <span className="epx-toast-message">Contact details copied</span>
+      <button type="button" className="epx-toast-undo" onClick={onClose}>Undo</button>
+      <button type="button" className="epx-toast-close" aria-label="Dismiss" onClick={onClose}>×</button>
+    </div>
+  );
+}
+
 type SupplierDraft = {
   contactName: string;
   contactEmail: string;
   contactPhone: string;
+  supplierName: string;
 };
+
+function supplierFromEmail(email: string): string {
+  const domain = email.split("@")[1]?.split(".")[0]?.toLowerCase() ?? "";
+  if (!domain || email === "—") return "";
+  const known: Record<string, string> = {
+    fronius: "Fronius",
+    siemens: "Siemens",
+    ausgrid: "Ausgrid",
+    jci: "JCI",
+    agl: "AGL",
+    health: "NSW Health",
+  };
+  return known[domain] ?? domain.charAt(0).toUpperCase() + domain.slice(1);
+}
+
+const DEFAULT_SUPPLIERS: Record<number, string> = {
+  1: "Ausgrid",
+  2: "JCI",
+  3: "Sydney Water",
+  4: "AGL",
+  5: "Fronius",
+  6: "Siemens",
+  7: "Veolia",
+  8: "NSW Health",
+  9: "NSW Health",
+  10: "Siemens",
+  11: "AGL",
+  12: "Fronius",
+};
+
+function supplierLabel(meter: Meter): string {
+  const named = meter.supplierName?.trim();
+  if (named && named !== "—" && named !== meter.source) return named;
+  return supplierFromEmail(meter.contactEmail) || DEFAULT_SUPPLIERS[meter.id] || "Unassigned";
+}
 
 function supplierDraft(meter: Meter): SupplierDraft {
   return {
     contactName: meter.contactName,
     contactEmail: meter.contactEmail,
     contactPhone: meter.contactPhone,
+    supplierName: supplierLabel(meter),
   };
 }
 
@@ -2557,36 +3844,54 @@ type OperationalDraft = {
   excludedReason: string;
   notifications: boolean;
   notificationComment: string;
+  notificationScope: string;
+  internalOnly: boolean;
 };
 
 function operationalDraft(meter: Meter): OperationalDraft {
+  const isCritical = meter.critical === "Yes";
+  const isExcluded = meter.excluded === "Yes";
+  const disableNotifications = meter.notifications === "Disabled";
   return {
-    critical: meter.critical === "Yes",
-    criticalReason: meter.criticalReason ?? "",
-    excluded: meter.excluded === "Yes",
-    excludedFrom: meter.excludedFrom ?? "",
-    excludedTo: meter.excludedTo ?? "",
+    critical: isCritical,
+    criticalReason: meter.criticalReason ?? (isCritical ? "Monitoring for Insight" : ""),
+    excluded: isExcluded,
+    excludedFrom: meter.excludedFrom ?? (isExcluded ? "2026-01-01" : ""),
+    excludedTo: meter.excludedTo ?? (isExcluded ? "2026-12-31" : ""),
     excludedNoEndDate: meter.excludedNoEndDate ?? false,
-    excludedReason: meter.excludedReason ?? "",
-    notifications: meter.notifications !== "Disabled",
-    notificationComment: meter.notificationComment ?? "",
+    excludedReason: meter.excludedReason ?? (isExcluded ? "Historical data only" : ""),
+    notifications: disableNotifications,
+    notificationComment: meter.notificationComment ?? (disableNotifications ? "Temporarily disabled for review" : ""),
+    notificationScope: meter.notificationScope ?? (disableNotifications ? "This device only" : ""),
+    internalOnly: meter.internalOnly ?? false,
   };
 }
 
-function OperationalForm({ draft, onChange }: {
+const CRITICAL_REASONS = ["Tenant billing", "Monitoring for Insight", "NABERS", "Other"];
+const EXCLUDE_REASONS = ["Historical data only", "Handover issues outside project control", "Dummy meter", "Temporarily isolated (e.g. maintenance or renovations)"];
+const DISABLE_FOR = ["This device only", "All devices at this site", "All devices at all sites"];
+const DISABLE_FOR_DETAILS: Record<string, string> = {
+  "All devices at this site": "2 devices for 100 Crescent Tower",
+  "All devices at all sites": "23 devices across 14 sites",
+};
+
+function OperationalForm({ draft, source, onChange }: {
   draft: OperationalDraft;
+  source: string;
   onChange: (patch: Partial<OperationalDraft>) => void;
 }) {
+  const showInternalOnly = /nem12|captis/i.test(source);
+  const showSupplierNotifications = hasSupplierContact(source);
   return (
     <div className="epx-settings-list">
-      <div className="epx-setting">
+      <div className="epx-setting epx-setting-critical">
         <div className="epx-setting-row">
           <div className="epx-setting-copy">
             <div>
               <img src="/assets/device-panel/6c992.svg" alt="" />
               <span>Critical device</span>
             </div>
-            <p>Alerts for this device requires priority monitoring, set by Customer Delivery team</p>
+            <p>Alerts for this device require priority monitoring, set by Customer Delivery team</p>
           </div>
           <button
             type="button"
@@ -2598,21 +3903,13 @@ function OperationalForm({ draft, onChange }: {
           </button>
         </div>
         {draft.critical && (
-          <div className="epx-setting-detail">
-            <FieldLabel text="Reason">
-              <select
-                value={draft.criticalReason}
-                onChange={event => onChange({ criticalReason: event.target.value })}
-                className="w-full border border-gray-400 bg-white px-2 py-1.5 text-xs outline-none focus:border-black"
-              >
-                <option value="">Select reason</option>
-                <option>Patient safety</option>
-                <option>Billing critical</option>
-                <option>Operational dependency</option>
-                <option>Other</option>
-              </select>
-            </FieldLabel>
-          </div>
+          <SettingSelect
+            label="Reason"
+            value={draft.criticalReason}
+            placeholder="Select reason"
+            options={CRITICAL_REASONS}
+            onChange={criticalReason => onChange({ criticalReason })}
+          />
         )}
       </div>
 
@@ -2623,7 +3920,7 @@ function OperationalForm({ draft, onChange }: {
               <img src="/assets/device-panel/82b00.svg" alt="" />
               <span>Exclude</span>
             </div>
-            <p>Device is excluded from automated monitoring and missing data checks</p>
+            <p>Device is excluded from automated monitoring, missing data checks and SLA reporting</p>
           </div>
           <button
             type="button"
@@ -2636,81 +3933,490 @@ function OperationalForm({ draft, onChange }: {
         </div>
         {draft.excluded && (
           <div className="epx-setting-detail">
-            <FieldLabel text="From date">
-              <input
-                type="date"
-                value={draft.excludedFrom}
-                onChange={event => onChange({ excludedFrom: event.target.value })}
-                className="w-full border border-gray-400 bg-white px-2 py-1.5 text-xs outline-none focus:border-black"
-              />
-            </FieldLabel>
-            <FieldLabel text="To date">
-              <input
-                type="date"
-                value={draft.excludedTo}
-                disabled={draft.excludedNoEndDate}
-                onChange={event => onChange({ excludedTo: event.target.value })}
-                className="w-full border border-gray-400 bg-white px-2 py-1.5 text-xs outline-none focus:border-black disabled:bg-gray-100 disabled:text-gray-400"
-              />
-            </FieldLabel>
-            <label className="flex items-center gap-2 text-xs cursor-pointer">
+            <DateRangeField from={draft.excludedFrom} to={draft.excludedTo} toDisabled={draft.excludedNoEndDate} onFromChange={excludedFrom => onChange({ excludedFrom })} onToChange={excludedTo => onChange({ excludedTo })} />
+            <label className="epx-check-line">
               <input
                 type="checkbox"
                 checked={draft.excludedNoEndDate}
-                onChange={event => onChange({ excludedNoEndDate: event.target.checked })}
-                className="size-3.5 accent-black"
+                onChange={event => onChange({ excludedNoEndDate: event.target.checked, excludedTo: event.target.checked ? "" : draft.excludedTo })}
               />
               No end date
             </label>
-            <FieldLabel text="Reason">
-              <select
-                value={draft.excludedReason}
-                onChange={event => onChange({ excludedReason: event.target.value })}
-                className="w-full border border-gray-400 bg-white px-2 py-1.5 text-xs outline-none focus:border-black"
-              >
-                <option value="">Select reason</option>
-                <option>Planned maintenance</option>
-                <option>Fault investigation</option>
-                <option>Decommissioned</option>
-                <option>Other</option>
-              </select>
-            </FieldLabel>
+            <SettingSelect
+              label="Reason"
+              value={draft.excludedReason}
+              placeholder="Select reason"
+              options={EXCLUDE_REASONS}
+              onChange={excludedReason => onChange({ excludedReason })}
+            />
           </div>
         )}
       </div>
 
+      {showSupplierNotifications && (
       <div className="epx-setting">
         <div className="epx-setting-row">
           <div className="epx-setting-copy">
             <div>
               <img src="/assets/device-panel/88fc5.svg" alt="" />
-              <span>Supplier notifications</span>
+              <span>Disable supplier notifications</span>
             </div>
-            <p>Send fault alerts to supplier</p>
+            <p>Suppliers will no longer receive automated notifications</p>
           </div>
           <button
             type="button"
             role="switch"
             aria-checked={draft.notifications}
-            onClick={() => onChange({ notifications: !draft.notifications })}
+            onClick={() => onChange({
+              notifications: !draft.notifications,
+              notificationScope: !draft.notifications
+                ? (draft.notificationScope || "This device only")
+                : draft.notificationScope,
+            })}
           >
             <img src={draft.notifications ? "/assets/device-panel/4513b.svg" : "/assets/device-panel/2b372.svg"} alt="" />
           </button>
         </div>
-        {!draft.notifications && (
+        {draft.notifications && (
           <div className="epx-setting-detail">
-            <FieldLabel text="Comment">
+            <SettingSelect
+              label="Apply to"
+              value={draft.notificationScope || "This device only"}
+              placeholder="This device only"
+              options={DISABLE_FOR}
+              optionDetails={DISABLE_FOR_DETAILS}
+              onChange={notificationScope => onChange({ notificationScope })}
+            />
+            <label className="epx-field">
+              <span>Comment</span>
               <textarea
                 value={draft.notificationComment}
                 onChange={event => onChange({ notificationComment: event.target.value })}
                 rows={3}
                 placeholder="Why are notifications being disabled?"
-                className="w-full resize-none border border-gray-400 bg-white px-2 py-1.5 text-xs normal-case tracking-normal outline-none placeholder:text-gray-400 focus:border-black"
               />
-            </FieldLabel>
+            </label>
           </div>
         )}
       </div>
+      )}
+      {showInternalOnly && (
+        <div className="epx-setting">
+          <div className="epx-setting-row">
+            <div className="epx-setting-copy">
+              <div>
+                <img src="/assets/device-panel/visibility.svg" alt="" />
+                <span>Visible to internal users only</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={draft.internalOnly}
+              aria-label="Visible to internal users only"
+              onClick={() => onChange({ internalOnly: !draft.internalOnly })}
+            >
+              <img src={draft.internalOnly ? "/assets/device-panel/4513b.svg" : "/assets/device-panel/2b372.svg"} alt="" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HeaderTooltip({ title, body, children }: { title: string; body: string; children: React.ReactNode }) {
+  const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
+  return (
+    <span
+      className="epx-header-tip"
+      onMouseEnter={event => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        setAnchor({ x: rect.left + rect.width / 2, y: rect.top });
+      }}
+      onMouseLeave={() => setAnchor(null)}
+      onClick={event => event.stopPropagation()}
+    >
+      {children}
+      {anchor && (
+        <span className="epx-tooltip" style={{ left: anchor.x, top: anchor.y }} role="tooltip">
+          <strong>{title}</strong>
+          <span>{body}</span>
+        </span>
+      )}
+    </span>
+  );
+}
+
+function SettingSelect({ label, value, placeholder, options, optionDetails, onChange }: {
+  label: string;
+  value: string;
+  placeholder: string;
+  options: string[];
+  optionDetails?: Record<string, string>;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    function handle(event: PointerEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("pointerdown", handle);
+    return () => document.removeEventListener("pointerdown", handle);
+  }, [open]);
+  const selectedDetail = optionDetails?.[value];
+  return (
+    <div className="epx-field" ref={rootRef}>
+      <span>{label}</span>
+      <button type="button" className={`epx-select-field${selectedDetail ? " has-supporting" : ""}`} aria-expanded={open} onClick={() => setOpen(current => !current)}>
+        <span className={`epx-select-value${value ? "" : " is-placeholder"}`}>
+          <span>{value || placeholder}</span>
+          {selectedDetail && <small>{selectedDetail}</small>}
+        </span>
+        <img src="/assets/device-management/3c143.svg" alt="" />
+      </button>
+      {open && (
+        <div className="epx-select-menu" role="listbox">
+          {options.map(option => {
+            const detail = optionDetails?.[option];
+            const selected = value === option;
+            return (
+              <button
+                type="button"
+                key={option}
+                role="option"
+                aria-selected={selected}
+                onClick={() => {
+                  onChange(option);
+                  setOpen(false);
+                }}
+              >
+                <span className="epx-select-option-copy">
+                  <span>{option}</span>
+                  {detail && <small>{detail}</small>}
+                </span>
+                {selected && <img className="epx-select-option-check" src="/assets/select/check.svg" alt="" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatDateText(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? `${value.slice(8, 10)}/${value.slice(5, 7)}/${value.slice(0, 4)}`
+    : "";
+}
+
+function maskDateText(raw: string) {
+  const digits = raw.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+function dateFromText(text: string) {
+  const match = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return null;
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+  return date;
+}
+
+function DateField({ label, value, disabled, align = "start", onChange, onPick }: {
+  label: string;
+  value: string;
+  disabled?: boolean;
+  align?: "start" | "end";
+  onChange: (value: string) => void;
+  onPick?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [touched, setTouched] = useState(false);
+  const [text, setText] = useState(() => formatDateText(value));
+  const [anchor, setAnchor] = useState<{ top: number; left: number; width: number; openUp: boolean } | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const calendarRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    setText(formatDateText(value));
+  }, [value]);
+  useEffect(() => {
+    if (!open) return;
+    function place() {
+      const field = rootRef.current?.querySelector(".epx-select-field");
+      if (!field) return;
+      const rect = field.getBoundingClientRect();
+      const calendarHeight = 340;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const openUp = spaceBelow < calendarHeight + 12 && rect.top > calendarHeight;
+      setAnchor({
+        top: openUp ? rect.top - 8 : rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+        openUp,
+      });
+    }
+    place();
+    function handle(event: PointerEvent) {
+      const target = event.target as Node;
+      if (!rootRef.current?.contains(target) && !calendarRef.current?.contains(target)) setOpen(false);
+    }
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    document.addEventListener("pointerdown", handle);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+      document.removeEventListener("pointerdown", handle);
+    };
+  }, [open]);
+  const parsed = value ? new Date(`${value}T00:00:00`) : new Date();
+  const [cursor, setCursor] = useState(parsed);
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+  const startOffset = (new Date(year, month, 1).getDay() + 6) % 7;
+  const gridStart = new Date(year, month, 1 - startOffset);
+  const cells = Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(gridStart);
+    date.setDate(gridStart.getDate() + index);
+    return date;
+  });
+  const weeks = Array.from({ length: 6 }, (_, index) => cells.slice(index * 7, index * 7 + 7));
+  const today = new Date();
+
+  function iso(date: Date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  }
+
+  function handleTypedDate(raw: string) {
+    const next = maskDateText(raw);
+    setText(next);
+    const date = dateFromText(next);
+    if (date) {
+      onChange(iso(date));
+      setCursor(new Date(date.getFullYear(), date.getMonth(), 1));
+    } else if (value) {
+      onChange("");
+    }
+  }
+
+  const dateInvalid = !disabled && text.length > 0 && !dateFromText(text) && (touched || text.length === 10);
+
+  return (
+    <div className="epx-field" ref={rootRef}>
+      <span>{label}</span>
+      <div className={`epx-select-field${disabled ? " is-disabled" : ""}${dateInvalid ? " is-invalid" : ""}`}>
+        <input
+          value={text}
+          disabled={disabled}
+          inputMode="numeric"
+          placeholder="DD/MM/YYYY"
+          aria-label={label}
+          aria-invalid={dateInvalid}
+          onChange={event => handleTypedDate(event.target.value)}
+          onBlur={() => setTouched(true)}
+        />
+        {dateInvalid && <img className="epx-field-error-icon" src="/assets/add-device/error.svg" alt="" />}
+        <button
+          type="button"
+          aria-label={`Choose ${label}`}
+          disabled={disabled}
+          onClick={() => onPick ? onPick() : setOpen(current => !current)}
+        >
+          <img src="/assets/add-device/6396d.svg" alt="" />
+        </button>
+      </div>
+      {dateInvalid && <p className="epx-field-error">Invalid date</p>}
+      {open && !disabled && !onPick && anchor && createPortal(
+        <div
+          ref={calendarRef}
+          className={`epx-calendar is-floating${anchor.openUp ? " is-up" : ""}`}
+          style={{ top: anchor.top, left: anchor.left, width: anchor.width }}
+        >
+          <div className="epx-calendar-title">
+            <button type="button" aria-label="Previous month" onClick={() => setCursor(new Date(year, month - 1, 1))}>
+              <img src="/assets/calendar/chevron-left.svg" alt="" />
+            </button>
+            <div>
+              <strong>{cursor.toLocaleString("en-AU", { month: "long" })}</strong>
+              <span>{year}</span>
+            </div>
+            <button type="button" aria-label="Next month" onClick={() => setCursor(new Date(year, month + 1, 1))}>
+              <img src="/assets/calendar/chevron-right.svg" alt="" />
+            </button>
+          </div>
+          <div className="epx-calendar-weekdays">
+            {["M", "T", "W", "T", "F", "S", "S"].map((day, index) => <span key={`${day}-${index}`}>{day}</span>)}
+          </div>
+          <div className="epx-calendar-weeks">
+            {weeks.map((week, weekIndex) => (
+              <div key={weekIndex}>
+                {week.map(date => {
+                  const inMonth = date.getMonth() === month;
+                  const selected = value === iso(date);
+                  const isToday = date.getFullYear() === today.getFullYear()
+                    && date.getMonth() === today.getMonth()
+                    && date.getDate() === today.getDate();
+                  return (
+                    <button
+                      type="button"
+                      key={iso(date)}
+                      className={`${inMonth ? "" : "is-outside"}${selected ? " is-selected" : ""}${isToday && !selected ? " is-today" : ""}`}
+                      onClick={() => {
+                        onChange(iso(date));
+                        setOpen(false);
+                      }}
+                    >
+                      <span>{date.getDate()}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+}
+
+function DateRangeField({ from, to, disabled, toDisabled, className = "", onFromChange, onToChange }: {
+  from: string;
+  to: string;
+  disabled?: boolean;
+  toDisabled?: boolean;
+  className?: string;
+  onFromChange: (value: string) => void;
+  onToChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [activeField, setActiveField] = useState<"from" | "to" | null>(null);
+  const [anchor, setAnchor] = useState<{ top: number; left: number; width: number; openUp: boolean } | null>(null);
+  const [cursor, setCursor] = useState(() => from ? new Date(`${from}T00:00:00`) : new Date());
+  const [hoverKey, setHoverKey] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const calendarRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    function place() {
+      const field = rootRef.current?.querySelector(".epx-select-field");
+      if (!field) return;
+      const rect = field.getBoundingClientRect();
+      const openUp = window.innerHeight - rect.bottom < 360 && rect.top > 360;
+      setAnchor({ top: openUp ? rect.top - 8 : rect.bottom + 4, left: rect.left, width: Math.max(rect.width, 320), openUp });
+    }
+    place();
+    function handle(event: PointerEvent) {
+      const target = event.target as Node;
+      if (!rootRef.current?.contains(target) && !calendarRef.current?.contains(target)) setOpen(false);
+    }
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    document.addEventListener("pointerdown", handle);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+      document.removeEventListener("pointerdown", handle);
+    };
+  }, [open]);
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+  const startOffset = (new Date(year, month, 1).getDay() + 6) % 7;
+  const gridStart = new Date(year, month, 1 - startOffset);
+  const weeks = Array.from({ length: 6 }, (_, week) => Array.from({ length: 7 }, (_, day) => {
+    const date = new Date(gridStart);
+    date.setDate(gridStart.getDate() + week * 7 + day);
+    return date;
+  }));
+  function iso(date: Date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  }
+  function choose(date: Date) {
+    const next = iso(date);
+    if (toDisabled) {
+      onFromChange(next);
+      setOpen(false);
+      return;
+    }
+    if (!from || (from && to)) {
+      onFromChange(next);
+      onToChange("");
+      return;
+    }
+    if (next < from) {
+      onToChange(from);
+      onFromChange(next);
+    } else {
+      onToChange(next);
+    }
+    setOpen(false);
+  }
+  return (
+    <div className={`epx-date-range ${className}${disabled ? " is-locked" : ""}${toDisabled ? " is-no-end" : ""}`} ref={rootRef}>
+      <DateField label="From" value={from} disabled={disabled} onChange={onFromChange} onPick={() => {
+        setActiveField("from");
+        setOpen(true);
+      }} />
+      <DateField label="To" align="end" value={to} disabled={disabled || toDisabled} onChange={onToChange} onPick={() => {
+        setActiveField("to");
+        setOpen(true);
+      }} />
+      {open && activeField === "from" && !(from && (to || toDisabled)) && (
+        <button type="button" className="epx-date-range-open" disabled={disabled || toDisabled} onClick={() => setOpen(current => !current)}>
+          {from && !to ? "Now choose the end date" : "Choose a date range"}
+        </button>
+      )}
+      {open && !disabled && anchor && createPortal(
+        <div ref={calendarRef} className={`epx-calendar is-floating is-range${anchor.openUp ? " is-up" : ""}`} style={{ top: anchor.top, left: anchor.left, width: anchor.width }}>
+          <div className="epx-calendar-title">
+            <button type="button" aria-label="Previous month" onClick={() => setCursor(new Date(year, month - 1, 1))}><img src="/assets/calendar/chevron-left.svg" alt="" /></button>
+            <div><strong>{cursor.toLocaleString("en-AU", { month: "long" })}</strong><span>{year}</span></div>
+            <button type="button" aria-label="Next month" onClick={() => setCursor(new Date(year, month + 1, 1))}><img src="/assets/calendar/chevron-right.svg" alt="" /></button>
+          </div>
+          <div className="epx-calendar-weekdays">{["M", "T", "W", "T", "F", "S", "S"].map((day, index) => <span key={`${day}-${index}`}>{day}</span>)}</div>
+          <div className="epx-calendar-weeks">
+            {weeks.map((week, weekIndex) => (
+              <div key={weekIndex}>
+                {week.map(date => {
+                  const key = iso(date);
+                  const inMonth = date.getMonth() === month;
+                  const isToday = date.toDateString() === new Date().toDateString();
+                  const preview = !toDisabled && !to && from && hoverKey ? hoverKey : to;
+                  const start = from && preview ? (from < preview ? from : preview) : from;
+                  const end = from && preview ? (from < preview ? preview : from) : "";
+                  const ranged = Boolean(start && end && start !== end);
+                  const isStart = ranged && key === start;
+                  const isEnd = ranged && key === end;
+                  const inRange = Boolean(ranged && key > start && key < end);
+                  const selected = Boolean(from) && !ranged && key === from;
+                  return (
+                    <button
+                      type="button"
+                      key={key}
+                      className={`${inMonth ? "" : "is-outside"}${isToday ? " is-today" : ""}${selected ? " is-selected" : ""}${isStart ? " is-range-start" : ""}${isEnd ? " is-range-end" : ""}${inRange ? " is-in-range" : ""}`}
+                      onMouseEnter={() => setHoverKey(key)}
+                      onMouseLeave={() => setHoverKey(null)}
+                      onClick={() => choose(date)}
+                    >
+                      <span>{date.getDate()}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }

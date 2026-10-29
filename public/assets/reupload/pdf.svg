@@ -1,0 +1,8 @@
+<svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M6 1.5h13.2L27.5 9.8V36a2.5 2.5 0 0 1-2.5 2.5H6A2.5 2.5 0 0 1 3.5 36V4A2.5 2.5 0 0 1 6 1.5Z" fill="#E8F1FE" stroke="#7AA7F5"/>
+  <path d="M19 2v8h8" fill="#D6E6FF"/>
+  <path d="M19 2.2 26.8 10H19V2.2Z" fill="#B9D4FF"/>
+  <path d="M8 16h10M8 20h14M8 24h8" stroke="#8BB4F0" stroke-width="1.6" stroke-linecap="round"/>
+  <rect x="5" y="28" width="22" height="10" rx="2" fill="#2563EB"/>
+  <text x="16" y="35.5" text-anchor="middle" fill="#fff" font-family="Arial, sans-serif" font-size="7" font-weight="700">.PDF</text>
+</svg>
