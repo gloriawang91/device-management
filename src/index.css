@@ -401,6 +401,20 @@ textarea {
   opacity: 0.7;
 }
 
+.epx-stat-metric {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.epx-stat-percentage {
+  color: #4e5661;
+  font-family: 'Open Sans:Regular', Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 18px;
+}
+
 .epx-stat-value {
   color: #1e2734;
   font-family: 'Open Sans:SemiBold', Arial, sans-serif;
@@ -440,14 +454,14 @@ textarea {
   color: #ea580c;
   font-family: 'Poppins:Regular', Arial, sans-serif;
   font-size: 14px;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .epx-stat-label.is-excluded {
   color: #0047ba;
   font-family: 'Poppins:Regular', Arial, sans-serif;
   font-size: 14px;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .epx-toolbar {
@@ -717,6 +731,18 @@ textarea {
   background: #e6e8ec;
 }
 
+.epx-device-table [data-column='portfolio'] {
+  width: 160px;
+}
+
+.epx-device-table [data-column='site'] {
+  width: 220px;
+}
+
+.epx-device-table [data-column='region'] {
+  width: 180px;
+}
+
 .epx-device-table [data-column='edgeId'] {
   width: 168px;
 }
@@ -828,6 +854,28 @@ textarea {
   border-top: 6px solid #28364a;
   content: "";
   transform: translateX(-50%);
+}
+
+.epx-tooltip-compact {
+  z-index: 80;
+  width: 163px;
+}
+
+.epx-tooltip-compact span {
+  color: #fff;
+  font-family: 'Open Sans:Regular', Arial, sans-serif;
+  font-size: 14px;
+  line-height: 18px;
+}
+
+.epx-export-default-grid .epx-header-tip img {
+  width: 16px;
+  height: 16px;
+}
+
+.epx-export-default-grid .epx-header-tip:focus-visible {
+  outline: 2px solid #0047ba;
+  outline-offset: 2px;
 }
 
 .epx-column-filter {
@@ -1407,6 +1455,76 @@ textarea {
   width: 100%;
 }
 
+.epx-app .epx-site-card {
+  border-radius: 12px;
+  text-align: left;
+}
+
+.epx-site-card:hover,
+.epx-site-card[aria-expanded='true'] {
+  border-color: #9da3ab;
+}
+
+.epx-site-card:focus-visible,
+.epx-site-switcher-popup button:focus-visible {
+  outline: 2px solid #0047ba;
+  outline-offset: 2px;
+}
+
+.epx-site-switcher-popup {
+  position: fixed;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: calc(100vw - 24px);
+  padding: 12px;
+  border: 1px solid #e6e8ec;
+  border-radius: 6px;
+  background: var(--epx-sidebar);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 10%), 0 4px 6px -2px rgb(0 0 0 / 5%);
+}
+
+.epx-site-switcher-popup .epx-field:focus-within {
+  z-index: 1;
+}
+
+.epx-app .epx-site-switcher-popup[role='dialog'] > .epx-field {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.epx-site-switcher-popup .epx-select-field {
+  border-radius: 6px;
+}
+
+.epx-site-switcher-popup .epx-select-menu {
+  max-height: min(304px, max(80px, calc(100dvh - 340px)));
+}
+
+.epx-site-switcher-popup .epx-field:first-child .epx-select-menu {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #676e78 transparent;
+}
+
+.epx-site-switcher-popup .epx-field:first-child .epx-select-menu button:first-child {
+  min-height: 44px;
+  border-bottom: 1px solid #e6e8ec;
+  border-radius: 0;
+}
+
+.epx-site-switcher-popup .epx-field:first-child .epx-select-value,
+.epx-site-switcher-popup .epx-field:first-child .epx-select-option-copy > span {
+  color: #4e5661;
+}
+
+.epx-site-switcher-popup .epx-field:last-child .epx-select-menu button:first-child {
+  border-radius: 0;
+  border-bottom: 1px solid #e6e8ec;
+  margin-bottom: 4px;
+}
+
 .epx-site-card img {
   width: 32px;
   height: 32px;
@@ -1941,7 +2059,8 @@ textarea {
 .epx-app [role='dialog'] > .epx-export-dialog {
   display: flex;
   width: min(700px, 100%);
-  max-height: min(772px, calc(100vh - 48px));
+  height: min(564px, calc(100dvh - 48px));
+  max-height: min(564px, calc(100dvh - 48px));
   flex-direction: column;
   gap: 32px;
   overflow: hidden;
@@ -1959,7 +2078,7 @@ textarea {
   padding: 24px 32px 16px;
   border-bottom: 1px solid #e6e8ec;
   border-radius: 12px 12px 0 0;
-  background: #f1f5fa;
+  background: #fff;
 }
 
 .epx-export-dialog-header h2 {
@@ -2064,6 +2183,67 @@ textarea {
 
 .epx-export-default-grid label.is-locked {
   cursor: default;
+}
+
+.epx-export-device-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 16px;
+}
+
+.epx-export-device-options label {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: #1e2734;
+  font-family: 'Open Sans:Regular', Arial, sans-serif;
+  font-size: 14px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.epx-export-device-options label:has(input:disabled) {
+  color: #838a93;
+  cursor: not-allowed;
+}
+
+.epx-app .epx-export-dialog input[type='radio'] {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+  flex: 0 0 16px;
+  appearance: none;
+  border: 1px solid #838a93;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.epx-app .epx-export-dialog input[type='radio']:checked {
+  border: 0;
+  box-shadow: inset 0 0 0 1.6px #0056e0;
+}
+
+.epx-app .epx-export-dialog input[type='radio']:checked::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #0056e0;
+}
+
+.epx-app .epx-export-dialog input[type='radio']:disabled {
+  cursor: not-allowed;
+}
+
+.epx-app .epx-export-dialog input[type='radio']:focus-visible {
+  outline: 2px solid #0047ba;
+  outline-offset: 2px;
 }
 
 .epx-app .epx-export-dialog input[type='checkbox'] {
@@ -2181,6 +2361,23 @@ textarea {
 
 .epx-export-optional-content tbody tr:last-child td {
   border-bottom: 0;
+}
+
+.epx-export-optional-content tbody tr {
+  cursor: pointer;
+}
+
+.epx-export-optional-content tbody tr:hover td {
+  background: #f8f9fa;
+}
+
+.epx-export-available {
+  display: block;
+  width: 6px;
+  height: 6px;
+  margin: auto;
+  border-radius: 50%;
+  background: #838a93;
 }
 
 .epx-export-unavailable {
@@ -2338,6 +2535,106 @@ textarea {
 .epx-add-device-field select:invalid {
   color: #838a93;
 }
+
+.epx-add-device-field > input:disabled {
+  color: #9da3ab;
+  background: #f5f6f8;
+  opacity: 1;
+}
+
+.epx-supplier-suggestions {
+  position: fixed;
+  z-index: 100;
+  overflow-y: auto;
+  padding: 4px 0;
+  border: 1px solid #e6e8ec;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 4px 8px rgba(16, 24, 40, 0.12);
+}
+
+.epx-supplier-suggestions-heading {
+  padding: 4px 16px;
+  color: #838a93;
+  font-family: 'Open Sans:Regular', Arial, sans-serif;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.epx-supplier-suggestions button {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+  min-height: 70px;
+  padding: 14px 20px;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+  color: #4e5661;
+  text-align: left;
+  box-shadow: none;
+}
+
+.epx-supplier-suggestions button[aria-selected='true'] {
+  background: #eaf1ff;
+}
+
+.epx-supplier-suggestions svg {
+  flex-shrink: 0;
+  color: #686f7a;
+}
+
+.epx-supplier-suggestions button > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.epx-supplier-suggestions strong,
+.epx-supplier-suggestions small {
+  display: block;
+  font-family: 'Poppins:Regular', Arial, sans-serif;
+  font-weight: 400;
+  line-height: 20px;
+}
+
+.epx-supplier-suggestions strong { font-size: 14px; }
+.epx-supplier-suggestions small { color: #838a93; font-size: 12px; }
+
+.epx-supplier-suggestions .epx-supplier-add-option {
+  min-height: 44px;
+  padding: 10px 20px;
+  border-top: 1px solid #e6e8ec;
+  color: #0056e0;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.epx-supplier-contact-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.epx-supplier-contact-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid #c4c8cd;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 14px;
+}
+
+.epx-supplier-contact-actions button:last-child {
+  border-color: #0056e0;
+  background: #0056e0;
+  color: #fff;
+}
+
+.epx-add-device-field > input[aria-invalid='true'] { border-color: #b42318; }
+#supplier-email-error { color: #b42318; }
 
 .epx-add-device-select,
 .epx-add-device-date {
@@ -2572,6 +2869,20 @@ textarea {
   padding: 0;
 }
 
+.epx-add-device-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.epx-add-device-identity-options {
+  align-items: center;
+}
+
+.epx-add-device-checks input[type='checkbox'] {
+  flex-shrink: 0;
+}
+
 .epx-add-device-source {
   display: flex;
   flex-direction: column;
@@ -2768,6 +3079,20 @@ textarea {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 24px;
   align-items: start;
+}
+
+.epx-reconfig-body.is-smartcom {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+.epx-reconfig-body.is-smartcom > .epx-reconfig-row {
+  display: contents;
+}
+
+.epx-reconfig-body.is-smartcom > .epx-reconfig-row:last-child > :last-child {
+  grid-column: 1 / -1;
 }
 
 .epx-reconfig-row > .epx-field > span {
@@ -3184,32 +3509,35 @@ textarea {
   color: #16202e;
 }
 
-.epx-contact-person {
+.epx-contact-card {
+  padding: 12px 14px 8px;
+}
+
+.epx-contact-supplier {
   display: flex;
-  min-height: 48px;
   align-items: center;
   gap: 12px;
-  padding-bottom: 10px;
+  padding-bottom: 12px;
   border-bottom: 1px solid #e3e8f0;
 }
 
-.epx-contact-person > span {
-  display: flex;
-  width: 40px;
-  height: 40px;
+.epx-contact-supplier > img {
   flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  color: #0b44c2;
-  border-radius: 50%;
-  background: #eaf2ff;
-  font-size: 14px;
+  width: 24px;
+  height: 24px;
 }
 
-.epx-contact-person > div {
-  display: flex;
+.epx-contact-supplier > strong {
   min-width: 0;
-  flex-direction: column;
+  overflow-wrap: anywhere;
+  color: #16202e;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.epx-contact-card .epx-contact-row {
+  min-height: 48px;
 }
 
 .epx-supplier-modal {
@@ -3512,19 +3840,6 @@ textarea {
   width: 24px;
   font-size: 22px;
   line-height: 1;
-}
-
-.epx-contact-person strong {
-  color: #16202e;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 20px;
-}
-
-.epx-contact-person small {
-  color: #6b7789;
-  font-size: 12px;
-  line-height: 16px;
 }
 
 .epx-contact-row {

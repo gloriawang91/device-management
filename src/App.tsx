@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Building2, Plus } from "lucide-react";
+
+type SupplierContact = { supplierName: string; contactEmail: string };
 
 type Meter = {
   id: number; name: string; edgeId: string; type: string; source: string;
+  portfolio?: string; site?: string; region?: string;
   status: string; online: string; critical: string; excluded: string; notifications: string;
   lastData: string; dataFormat: string; comAddress: string;
   contactName: string; contactEmail: string; contactPhone: string; supplierName?: string;
@@ -26,6 +30,7 @@ type NewMeterInput = {
   source: string;
   dataFormat: string;
   nmiNo: string;
+  nmiSuffix?: string;
   serialNo: string;
   captisNumber: string;
   apiParameter: string;
@@ -67,6 +72,10 @@ const STATS = [
   { label: "Critical", value: 23, filter: "critical" as View },
   { label: "Excluded", value: 7, filter: "excluded" as View },
 ];
+
+const TOTAL_DEVICE_COUNT = STATS
+  .filter(stat => stat.filter === "online" || stat.filter === "offline")
+  .reduce((total, stat) => total + stat.value, 0);
 
 const HEADER_TOOLTIPS: Partial<Record<SortKey, { title: string; body: string }>> = {
   online: {
@@ -139,12 +148,13 @@ const ALL_COLUMN_KEYS: SortKey[] = [
 type ExportFieldKey =
   | "name" | "edgeId" | "type" | "source" | "online" | "status" | "critical" | "excluded"
   | "serialNo" | "channels" | "comAddress" | "baudRate" | "ctRatio" | "inputNumber" | "pulseRatio";
+type ExportScope = "all" | "selected";
 
 const DEFAULT_EXPORT_FIELDS: { key: ExportFieldKey; label: string; locked?: boolean }[] = [
   { key: "name", label: "Device name", locked: true },
   { key: "edgeId", label: "Edge device ID", locked: true },
-  { key: "type", label: "Device type" },
-  { key: "source", label: "Data source" },
+  { key: "type", label: "Utility" },
+  { key: "source", label: "Device type" },
   { key: "online", label: "Online status" },
   { key: "status", label: "Under commissioning" },
   { key: "critical", label: "Critical status" },
@@ -191,8 +201,26 @@ const DEVICE_TYPE_ICONS: Record<string, string> = {
   Water: "/assets/device-types/3d9b4.svg",
 };
 
+const DEMO_DEVICE_LOCATIONS = [
+  { portfolio: "DWS", site: "100 Crescent Tower", region: "New South Wales" },
+  { portfolio: "Britishland", site: "Collins Street Plaza", region: "Victoria" },
+  { portfolio: "Growthpoint", site: "Brisbane Riverside", region: "Queensland" },
+  { portfolio: "DWS", site: "Adelaide Central", region: "South Australia" },
+  { portfolio: "Britishland", site: "Perth Exchange Tower", region: "Western Australia" },
+  { portfolio: "Growthpoint", site: "Hobart Harbour Centre", region: "Tasmania" },
+];
+
 export default function App() {
-  const [meters, setMeters] = useState<Meter[]>(INITIAL_METERS);
+  const [selectedPortfolio, setSelectedPortfolio] = useState("DWS");
+  const [selectedSite, setSelectedSite] = useState("100 Crescent Tower");
+  const [meters, setMeters] = useState<Meter[]>(() => INITIAL_METERS.map((meter, index) => ({
+    ...meter,
+    ...DEMO_DEVICE_LOCATIONS[index % DEMO_DEVICE_LOCATIONS.length],
+  })));
+  const [supplierContacts, setSupplierContacts] = useState<SupplierContact[]>([
+    { supplierName: "Eureka", contactEmail: "info@eureka.co.au" },
+    { supplierName: "Europe star", contactEmail: "info@eustar.com" },
+  ]);
   useEffect(() => {
     setMeters(current => {
       let changed = false;
@@ -368,6 +396,8 @@ export default function App() {
     setMeters(current => [...current, {
         id,
         name: input.name,
+        portfolio: selectedPortfolio === "All portfolios" ? undefined : selectedPortfolio,
+      site: selectedSite === "All sites" ? undefined : selectedSite,
         edgeId: formatEdgeId(input.meterId),
         type: input.utility,
         source: input.source,
@@ -385,6 +415,7 @@ export default function App() {
         supplierName: input.supplierName.trim() || "Unassigned",
         internalOnly: input.internalOnly,
         nmiNo: input.nmiNo || "—",
+        nmiSuffix: input.nmiSuffix,
         serialNo: input.serialNo || "000000000000",
         captisNumber: input.captisNumber || "—",
         cumulocityId: input.captisNumber || "—",
@@ -520,7 +551,13 @@ export default function App() {
   }, [shownColumns, columnOrder, visibleColumns]);
   const visibleCols = shownColumns.order
     .map(key => COLS.find(column => column.key === key))
-    .filter((column): column is { key: SortKey; label: string } => Boolean(column) && shownColumns.visible.includes(column!.key));
+    .filter((column): column is { key: SortKey; label: string } => Boolean(column) && shownColumns.visible.includes(column!.key))
+    .flatMap(column => selectedSite === "All sites" && column.key === "edgeId"
+      ? [{ key: "site" as const, label: "Site" }, { key: "region" as const, label: "Region" }, column]
+      : [column])
+    .flatMap(column => selectedPortfolio === "All portfolios" && column.key === "site"
+      ? [{ key: "portfolio" as const, label: "Portfolio" }, column]
+      : [column]);
 
   function toggleColumn(key: SortKey) {
     if (key === "name") return;
@@ -631,7 +668,7 @@ export default function App() {
   };
   const activePageDetails = pageDetails[activeTab];
 
-  function exportDevices(fields: ExportFieldKey[]) {
+  function exportDevices(fields: ExportFieldKey[], scope: ExportScope) {
     const labels = Object.fromEntries([...DEFAULT_EXPORT_FIELDS, ...OPTIONAL_EXPORT_FIELDS].map(field => [field.key, field.label]));
     const valueFor = (meter: Meter, field: ExportFieldKey) => {
       if (field === "online") return onlineValue(meter);
@@ -641,7 +678,10 @@ export default function App() {
       return String(meter[field as keyof Meter] ?? "—");
     };
     const headers = fields.map(field => labels[field]);
-    const rows = filtered.map(meter => fields.map(field => valueFor(meter, field)));
+    const exportMeters = scope === "selected"
+      ? meters.filter(meter => selected.includes(meter.id))
+      : filtered;
+    const rows = exportMeters.map(meter => fields.map(field => valueFor(meter, field)));
     const csv = [headers, ...rows]
       .map(row => row.map(cell => `"${String(cell).replaceAll('"', '""')}"`).join(","))
       .join("\n");
@@ -659,6 +699,10 @@ export default function App() {
       <Sidebar
         activePage={activeTab}
         onNavigate={setActiveTab}
+        selectedPortfolio={selectedPortfolio}
+        onPortfolioChange={setSelectedPortfolio}
+        selectedSite={selectedSite}
+        onSiteChange={setSelectedSite}
         onOpenRequestHistory={() => {
           setActiveTab("reupload");
           setReuploadView("history");
@@ -714,7 +758,12 @@ export default function App() {
                 onClick={() => setView(current => current === s.filter ? "all" : s.filter)}
                 className={`epx-stat-card flex-1 text-left ${view === s.filter ? "is-selected" : ""}`}
               >
-                <div className="epx-stat-value">{s.value}</div>
+                <div className="epx-stat-metric">
+                  <span className="epx-stat-value">{s.value}</span>
+                  <span className="epx-stat-percentage">
+                    {TOTAL_DEVICE_COUNT > 0 ? Math.round(s.value / TOTAL_DEVICE_COUNT * 100) : 0}%
+                  </span>
+                </div>
                 <div className={`epx-stat-label is-${s.label.toLowerCase()}`}>
                   {s.label === "Online" && <img src="/assets/device-management/2699a.svg" alt="" />}
                   {s.label === "Offline" && <img src="/assets/device-management/4ecff.svg" alt="" />}
@@ -812,6 +861,7 @@ export default function App() {
                 <tr>
                   {visibleCols.map(col => {
                     const filterOptions = COLUMN_FILTERS[col.key];
+                    const isInteractive = col.key !== "name" && col.key !== "edgeId";
                     const selectedValues = columnFilters[col.key] ?? filterOptions?.map(option => option.value) ?? [];
                     const allSelected = Boolean(filterOptions && selectedValues.length === filterOptions.length);
                     return (
@@ -819,11 +869,11 @@ export default function App() {
                       key={col.key}
                       ref={openColumnFilter === col.key ? columnFilterRef : undefined}
                       data-column={col.key}
-                      className={`cursor-pointer select-none whitespace-nowrap${filterOptions && !allSelected ? " is-filtered" : ""}`}
-                      onClick={() => {
+                      className={`${isInteractive ? "cursor-pointer" : "cursor-default"} select-none whitespace-nowrap${filterOptions && !allSelected ? " is-filtered" : ""}`}
+                      onClick={isInteractive ? () => {
                         if (!filterOptions) toggleSort(col.key);
                         else setOpenColumnFilter(current => current === col.key ? null : col.key);
-                      }}
+                      } : undefined}
                     >
                       <span className="epx-column-heading">
                         {col.key === "name" && (
@@ -1115,6 +1165,12 @@ export default function App() {
         <AddDeviceModal
           onClose={() => setAddDeviceOpen(false)}
           onAdd={addMeter}
+          supplierContacts={[...supplierContacts, ...meters.flatMap(meter =>
+            meter.supplierName && meter.contactEmail && meter.contactEmail !== "—"
+              ? [{ supplierName: meter.supplierName, contactEmail: meter.contactEmail }]
+              : []
+          )]}
+          onAddContact={contact => setSupplierContacts(current => [...current, contact])}
         />
       )}
 
@@ -1122,6 +1178,8 @@ export default function App() {
         <ExportDevicesDialog
           onClose={() => setExportDialogOpen(false)}
           onExport={exportDevices}
+          resultCount={filtered.length}
+          selectedCount={selected.length}
         />
       )}
 
@@ -1141,11 +1199,16 @@ export default function App() {
 function ExportDevicesDialog({
   onClose,
   onExport,
+  resultCount,
+  selectedCount,
 }: {
   onClose: () => void;
-  onExport: (fields: ExportFieldKey[]) => void;
+  onExport: (fields: ExportFieldKey[], scope: ExportScope) => void;
+  resultCount: number;
+  selectedCount: number;
 }) {
   const [optionalOpen, setOptionalOpen] = useState(false);
+  const [exportScope, setExportScope] = useState<ExportScope>(selectedCount > 0 ? "selected" : "all");
   const [selected, setSelected] = useState<ExportFieldKey[]>(DEFAULT_EXPORT_FIELDS.map(field => field.key));
 
   useEffect(() => {
@@ -1190,6 +1253,31 @@ function ExportDevicesDialog({
         </header>
 
         <div className="epx-export-dialog-body">
+          <section className="epx-export-section epx-export-devices">
+            <h3>Devices to export</h3>
+            <div className="epx-export-device-options" role="radiogroup" aria-label="Devices to export">
+              <label>
+                <input
+                  type="radio"
+                  name="export-scope"
+                  checked={exportScope === "all"}
+                  onChange={() => setExportScope("all")}
+                />
+                <span>All results ({resultCount})</span>
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="export-scope"
+                  checked={exportScope === "selected"}
+                  disabled={selectedCount === 0}
+                  onChange={() => setExportScope("selected")}
+                />
+                <span>Selected devices ({selectedCount})</span>
+              </label>
+            </div>
+          </section>
+
           <section className="epx-export-section">
             <h3>Default fields</h3>
             <div className="epx-export-default-grid">
@@ -1202,6 +1290,11 @@ function ExportDevicesDialog({
                     onChange={() => toggleField(field.key)}
                   />
                   <span>{field.label}</span>
+                  {field.locked && (
+                    <HeaderTooltip title="" body="Always included" compact>
+                      <img src="/assets/export-dialog/info.svg" alt="" />
+                    </HeaderTooltip>
+                  )}
                 </label>
               ))}
             </div>
@@ -1261,7 +1354,14 @@ function ExportDevicesDialog({
                   </thead>
                   <tbody>
                     {OPTIONAL_EXPORT_FIELDS.map(field => (
-                      <tr key={field.key}>
+                      <tr
+                        key={field.key}
+                        className={selected.includes(field.key) ? "is-selected" : ""}
+                        onClick={event => {
+                          const target = event.target as HTMLElement;
+                          if (!target.closest("input, label")) toggleField(field.key);
+                        }}
+                      >
                         <td>
                           <label>
                             <input
@@ -1275,7 +1375,7 @@ function ExportDevicesDialog({
                         {field.compatibility.map((available, index) => (
                           <td key={index}>
                             {available
-                              ? <img src="/assets/export-dialog/check.svg" alt="Available" />
+                              ? <span className="epx-export-available" role="img" aria-label="Available" />
                               : <span className="epx-export-unavailable">–</span>}
                           </td>
                         ))}
@@ -1292,7 +1392,7 @@ function ExportDevicesDialog({
           <span>{selected.length} fields selected</span>
           <div>
             <button type="button" onClick={onClose}>Cancel</button>
-            <button type="button" className="is-primary" onClick={() => onExport(orderedSelection)}>Export CSV</button>
+            <button type="button" className="is-primary" onClick={() => onExport(orderedSelection, exportScope)}>Export</button>
           </div>
         </footer>
       </div>
@@ -1535,9 +1635,181 @@ function ColumnViewPanel({
   );
 }
 
-function AddDeviceModal({ onClose, onAdd }: {
+function SupplierContactFields({ source, supplierName, contactEmail, onSupplierChange, onEmailChange, contacts, onAddContact }: {
+  source: string;
+  supplierName: string;
+  contactEmail: string;
+  onSupplierChange: (value: string) => void;
+  onEmailChange: (value: string) => void;
+  contacts: SupplierContact[];
+  onAddContact: (contact: SupplierContact) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [addingContact, setAddingContact] = useState(false);
+  const [emailError, setEmailError] = useState(false);
+  const [anchor, setAnchor] = useState({ left: 0, top: 0, width: 0, maxHeight: 280 });
+  const supplierRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const isCaptis = source === "Captis";
+  const query = supplierName.trim().toLowerCase();
+  const uniqueContacts = contacts.filter((contact, index) => contacts.findIndex(candidate =>
+    candidate.supplierName.toLowerCase() === contact.supplierName.toLowerCase() &&
+    candidate.contactEmail.toLowerCase() === contact.contactEmail.toLowerCase()
+  ) === index);
+  const matches = uniqueContacts.filter(contact =>
+    `${contact.supplierName} ${contact.contactEmail}`.toLowerCase().includes(query)
+  );
+  const canAdd = Boolean(query) && !uniqueContacts.some(contact => contact.supplierName.toLowerCase() === query);
+  const showMenu = source === "NEM12" && open && Boolean(query);
+  const optionCount = matches.length + (canAdd ? 1 : 0);
+
+  useEffect(() => {
+    setOpen(false);
+    setAddingContact(false);
+    setEmailError(false);
+  }, [source]);
+
+  useEffect(() => {
+    if (!showMenu) return;
+    function positionMenu() {
+      const bounds = supplierRef.current?.getBoundingClientRect();
+      if (!bounds) return;
+      const below = window.innerHeight - bounds.bottom - 12;
+      const height = Math.min(280, 32 + matches.length * 70 + (canAdd ? 44 : 0));
+      const above = below < Math.min(height, 180) && bounds.top > below;
+      const maxHeight = Math.min(280, above ? bounds.top - 12 : below);
+      setAnchor({ left: bounds.left, width: bounds.width, maxHeight,
+        top: above ? bounds.top - Math.min(height, maxHeight) - 4 : bounds.bottom + 4 });
+    }
+    positionMenu();
+    window.addEventListener("resize", positionMenu);
+    window.addEventListener("scroll", positionMenu, true);
+    return () => {
+      window.removeEventListener("resize", positionMenu);
+      window.removeEventListener("scroll", positionMenu, true);
+    };
+  }, [showMenu, matches.length, canAdd]);
+
+  useEffect(() => {
+    if (showMenu) menuRef.current?.querySelector(`[data-index="${activeIndex}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [activeIndex, showMenu]);
+
+  function chooseContact(index: number) {
+    setOpen(false);
+    setEmailError(false);
+    if (index < matches.length) {
+      const contact = matches[index];
+      onSupplierChange(contact.supplierName);
+      onEmailChange(contact.contactEmail);
+      setAddingContact(false);
+    } else if (canAdd) {
+      onSupplierChange(supplierName.trim());
+      onEmailChange("");
+      setAddingContact(true);
+      emailRef.current?.focus();
+    }
+  }
+
+  return (
+    <>
+      <div className="epx-add-device-grid">
+        <label className="epx-add-device-field">
+          <span>Supplier</span>
+          <input
+            ref={supplierRef}
+            disabled={isCaptis}
+            value={isCaptis ? "Calliper" : supplierName}
+            placeholder="Enter supplier"
+            autoComplete="off"
+            role={isCaptis ? undefined : "combobox"}
+            aria-autocomplete={isCaptis ? undefined : "list"}
+            aria-expanded={isCaptis ? undefined : showMenu}
+            aria-controls={showMenu ? "supplier-suggestions" : undefined}
+            aria-activedescendant={showMenu && optionCount ? `supplier-option-${activeIndex}` : undefined}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setOpen(false)}
+            onChange={event => {
+              onSupplierChange(event.target.value);
+              onEmailChange("");
+              setActiveIndex(0);
+              setAddingContact(false);
+              setEmailError(false);
+              setOpen(true);
+            }}
+            onKeyDown={event => {
+              if (event.key === "Escape") {
+                event.stopPropagation();
+                setOpen(false);
+              } else if ((event.key === "ArrowDown" || event.key === "ArrowUp") && query && optionCount) {
+                event.preventDefault();
+                setOpen(true);
+                setActiveIndex(current => !showMenu ? 0 :
+                  (current + (event.key === "ArrowDown" ? 1 : -1) + optionCount) % optionCount);
+              } else if (event.key === "Enter" && showMenu && optionCount) {
+                event.preventDefault();
+                chooseContact(activeIndex);
+              }
+            }}
+          />
+        </label>
+        <label className="epx-add-device-field">
+          <span>Email</span>
+          <input
+            ref={emailRef}
+            type="email"
+            aria-label="Email"
+            disabled={isCaptis}
+            value={isCaptis ? "info@calliper.co.au" : contactEmail}
+            placeholder="Enter email"
+            aria-invalid={emailError || undefined}
+            aria-describedby={emailError ? "supplier-email-error" : undefined}
+            onChange={event => { onEmailChange(event.target.value); setEmailError(false); }}
+          />
+          {emailError && <span id="supplier-email-error" role="alert">Enter a valid email address.</span>}
+        </label>
+      </div>
+      {addingContact && !isCaptis && (
+        <div className="epx-supplier-contact-actions">
+          <button type="button" onClick={() => { setAddingContact(false); setEmailError(false); }}>Cancel</button>
+          <button type="button" onClick={() => {
+            if (!contactEmail.trim() || !emailRef.current?.checkValidity()) { setEmailError(true); emailRef.current?.focus(); return; }
+            onAddContact({ supplierName: supplierName.trim(), contactEmail: contactEmail.trim() });
+            onEmailChange(contactEmail.trim());
+            setAddingContact(false);
+          }}><Plus size={16} aria-hidden="true" />Add contact</button>
+        </div>
+      )}
+      {showMenu && supplierRef.current && createPortal(
+        <div ref={menuRef} className="epx-supplier-suggestions" style={anchor} onMouseDown={event => event.preventDefault()}>
+          <div className="epx-supplier-suggestions-heading">Suggestions</div>
+          <div id="supplier-suggestions" role="listbox" aria-label="Supplier suggestions">
+            {matches.map((contact, index) => (
+              <button key={`${contact.supplierName}:${contact.contactEmail}`} type="button" role="option" tabIndex={-1}
+                id={`supplier-option-${index}`} data-index={index} aria-selected={activeIndex === index}
+                onMouseEnter={() => setActiveIndex(index)} onClick={() => chooseContact(index)}>
+                <Building2 size={20} aria-hidden="true" />
+                <span><strong>{contact.supplierName}</strong><small>{contact.contactEmail}</small></span>
+              </button>
+            ))}
+            {canAdd && <button type="button" role="option" tabIndex={-1} className="epx-supplier-add-option"
+              id={`supplier-option-${matches.length}`} data-index={matches.length} aria-selected={activeIndex === matches.length}
+              onMouseEnter={() => setActiveIndex(matches.length)} onClick={() => chooseContact(matches.length)}>
+              <Plus size={20} aria-hidden="true" /><span>Add new contact</span>
+            </button>}
+          </div>
+        </div>, supplierRef.current.closest(".epx-add-device-backdrop") ?? document.body
+      )}
+    </>
+  );
+}
+
+function AddDeviceModal({ onClose, onAdd, supplierContacts, onAddContact }: {
   onClose: () => void;
   onAdd: (input: NewMeterInput, notify?: boolean) => void;
+  supplierContacts: SupplierContact[];
+  onAddContact: (contact: SupplierContact) => void;
 }) {
   const [utility, setUtility] = useState("");
   const [meterName, setMeterName] = useState("");
@@ -1549,11 +1821,10 @@ function AddDeviceModal({ onClose, onAdd }: {
   const [validFrom, setValidFrom] = useState("");
   const [captisId, setCaptisId] = useState("");
   const [apiIdentifier, setApiIdentifier] = useState("");
-  const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [supplierName, setSupplierName] = useState("");
-  const [contactPhone, setContactPhone] = useState("");
   const [multipleMeters, setMultipleMeters] = useState(false);
+  const [nmiSuffix, setNmiSuffix] = useState("");
   const [internalOnly, setInternalOnly] = useState(false);
   const [utilityOpen, setUtilityOpen] = useState(false);
   const [apiParameterOpen, setApiParameterOpen] = useState(false);
@@ -1594,8 +1865,8 @@ function AddDeviceModal({ onClose, onAdd }: {
   const saveValid = detailsValid && sourceValid;
   const hasChanges = Boolean(
     utility || meterName || meterId || source !== "NEM12" || dataFormat || nmiNo || serialNo ||
-    validFrom || captisId || apiIdentifier || contactName || contactEmail || supplierName ||
-    contactPhone || multipleMeters || internalOnly || confirmSave
+    validFrom || captisId || apiIdentifier || contactEmail || supplierName ||
+    multipleMeters || internalOnly || confirmSave
   );
 
   function processDateLabel() {
@@ -1612,13 +1883,14 @@ function AddDeviceModal({ onClose, onAdd }: {
       source,
       dataFormat: source === "NEM12" ? "NEM12" : source === "Captis" ? "Captis API" : dataFormat,
       nmiNo: source === "NEM12" ? nmiNo : "—",
+      nmiSuffix: multipleMeters ? nmiSuffix.trim() || undefined : undefined,
       serialNo: source === "NEM12" ? serialNo : "—",
       captisNumber: source === "Captis" ? captisId : "—",
       apiParameter: source === "Captis" ? apiIdentifier : "",
-      contactName,
-      contactEmail,
-      contactPhone,
-      supplierName,
+      contactName: "",
+      contactEmail: source === "Captis" ? "info@calliper.co.au" : contactEmail,
+      contactPhone: "",
+      supplierName: source === "Captis" ? "Calliper" : supplierName,
       internalOnly,
     }, notify);
   }
@@ -1629,6 +1901,8 @@ function AddDeviceModal({ onClose, onAdd }: {
     setDataFormat("");
     setNmiNo(""); setSerialNo(""); setValidFrom("");
     setCaptisId(""); setApiIdentifier("");
+    setMultipleMeters(false);
+    setNmiSuffix("");
   }
 
   return (
@@ -1849,65 +2123,53 @@ function AddDeviceModal({ onClose, onAdd }: {
                   </label>
                 </div>
               )}
-              <label className="epx-add-device-check">
-                <input
-                  type="checkbox"
-                  checked={multipleMeters}
-                  onChange={event => setMultipleMeters(event.target.checked)}
-                />
-                Multiple meters with same NMI and same serial number
-              </label>
-              <label className="epx-add-device-check">
-                <input
-                  type="checkbox"
-                  checked={internalOnly}
-                  onChange={event => setInternalOnly(event.target.checked)}
-                />
-                Visible to internal users only
-              </label>
+              <div className={multipleMeters ? "epx-add-device-grid epx-add-device-identity-options" : undefined}>
+                <div className="epx-add-device-checks">
+                  <label className="epx-add-device-check">
+                    <input
+                      type="checkbox"
+                      checked={multipleMeters}
+                      onChange={event => {
+                        setMultipleMeters(event.target.checked);
+                        if (!event.target.checked) setNmiSuffix("");
+                      }}
+                    />
+                    Multiple meters with same NMI and serial no.
+                  </label>
+                  <label className="epx-add-device-check">
+                    <input
+                      type="checkbox"
+                      checked={internalOnly}
+                      onChange={event => setInternalOnly(event.target.checked)}
+                    />
+                    Visible to internal users only
+                  </label>
+                </div>
+                {multipleMeters && (
+                  <label className="epx-add-device-field">
+                    <span>Suffix</span>
+                    <input
+                      value={nmiSuffix}
+                      onChange={event => setNmiSuffix(event.target.value)}
+                      placeholder="Enter no."
+                    />
+                  </label>
+                )}
+              </div>
                 </div>
               </section>
               <section className="epx-add-device-step">
                 <h3>Step 2 — Supplier contact</h3>
                 <div className="epx-add-device-step-body">
-                <div className="epx-add-device-grid">
-                  <label className="epx-add-device-field">
-                    <span>Contact name</span>
-                    <input
-                      value={contactName}
-                      onChange={event => setContactName(event.target.value)}
-                      placeholder="Enter name"
-                    />
-                  </label>
-                  <label className="epx-add-device-field">
-                    <span>Email</span>
-                    <input
-                      type="email"
-                      value={contactEmail}
-                      onChange={event => setContactEmail(event.target.value)}
-                      placeholder="Enter email"
-                    />
-                  </label>
-                </div>
-                <div className="epx-add-device-grid">
-                  <label className="epx-add-device-field">
-                    <span>Supplier</span>
-                    <input
-                      value={supplierName}
-                      onChange={event => setSupplierName(event.target.value)}
-                      placeholder="Enter supplier"
-                    />
-                  </label>
-                  <label className="epx-add-device-field">
-                    <span>Phone</span>
-                    <input
-                      type="tel"
-                      value={contactPhone}
-                      onChange={event => setContactPhone(event.target.value)}
-                      placeholder="Enter phone"
-                    />
-                  </label>
-                </div>
+                  <SupplierContactFields
+                    source={source}
+                    supplierName={supplierName}
+                    contactEmail={contactEmail}
+                    onSupplierChange={setSupplierName}
+                    onEmailChange={setContactEmail}
+                    contacts={supplierContacts}
+                    onAddContact={onAddContact}
+                  />
                 </div>
               </section>
             </>
@@ -2687,9 +2949,130 @@ function ReuploadField({ label, children }: { label: string; children: React.Rea
   );
 }
 
-function Sidebar({ activePage, onNavigate, onOpenRequestHistory }: {
+const PORTFOLIO_SITES: Record<string, string[]> = {
+  DWS: ["100 Crescent Tower", "Site name 1", "Site name 2", "Site name 3", "Site name 4", "Site name 5"],
+  Britishland: ["Site name 6", "Site name 7", "Site name 8"],
+  Growthpoint: ["Site name 9", "Site name 10"],
+  "Portfolio name 1": [],
+  "Portfolio name 2": [],
+  "Portfolio name 3": [],
+};
+
+function SiteSwitcher({ portfolio, setPortfolio, site, setSite }: {
+  portfolio: string;
+  setPortfolio: (portfolio: string) => void;
+  site: string;
+  setSite: (site: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState({ top: 0, left: 12, width: 0 });
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function reposition() {
+      const bounds = triggerRef.current?.getBoundingClientRect();
+      if (!bounds) return;
+      setPosition({
+        top: Math.min(bounds.bottom + 8, Math.max(12, window.innerHeight - 182)),
+        left: Math.max(12, Math.min(bounds.left, window.innerWidth - bounds.width - 12)),
+        width: bounds.width,
+      });
+    }
+    function dismissOutside(event: Event) {
+      const target = event.target as Node;
+      if (!triggerRef.current?.contains(target) && !popupRef.current?.contains(target)) setOpen(false);
+    }
+    function dismissOnEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setOpen(false);
+      triggerRef.current?.focus();
+    }
+    reposition();
+    const resizeObserver = new ResizeObserver(reposition);
+    if (triggerRef.current) resizeObserver.observe(triggerRef.current);
+    popupRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+    document.addEventListener("pointerdown", dismissOutside);
+    document.addEventListener("focusin", dismissOutside);
+    document.addEventListener("keydown", dismissOnEscape);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+      document.removeEventListener("pointerdown", dismissOutside);
+      document.removeEventListener("focusin", dismissOutside);
+      document.removeEventListener("keydown", dismissOnEscape);
+    };
+  }, [open]);
+
+  return (
+    <div className="epx-site-switcher">
+      <button
+        type="button"
+        className="epx-site-card"
+        ref={triggerRef}
+        aria-label={`Switch portfolio or site: ${portfolio}, ${site}`}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls={open ? "epx-site-switcher-popup" : undefined}
+        onClick={() => setOpen(current => !current)}
+      >
+        <div className="flex items-center gap-3">
+          <img src="/assets/device-management/504fb.svg" alt="" />
+          <div className="min-w-0">
+            <div className="epx-site-name">{portfolio}</div>
+            <div className="epx-site-location">{site}</div>
+          </div>
+        </div>
+      </button>
+      {open && createPortal(
+        <div
+          id="epx-site-switcher-popup"
+          className="epx-site-switcher-popup"
+          role="dialog"
+          aria-label="Switch portfolio or site"
+          ref={popupRef}
+          style={position}
+        >
+          <SettingSelect
+            label="Portfolio"
+            ariaLabel="Portfolio"
+            value={portfolio}
+            placeholder="Select portfolio"
+            options={["All portfolios", ...Object.keys(PORTFOLIO_SITES)]}
+            onChange={next => {
+              setPortfolio(next);
+              if (next !== portfolio) setSite("All sites");
+            }}
+          />
+          <SettingSelect
+            key={portfolio}
+            label="Site"
+            ariaLabel="Site"
+            disabled={portfolio === "All portfolios"}
+            value={site}
+            placeholder="Select site"
+            options={["All sites", ...(PORTFOLIO_SITES[portfolio] ?? [])]}
+            onChange={setSite}
+          />
+        </div>,
+        document.querySelector(".epx-app") ?? document.body,
+      )}
+    </div>
+  );
+}
+
+function Sidebar({ activePage, onNavigate, selectedPortfolio, onPortfolioChange, selectedSite, onSiteChange, onOpenRequestHistory }: {
   activePage: Page;
   onNavigate: (page: Page) => void;
+  selectedPortfolio: string;
+  onPortfolioChange: (portfolio: string) => void;
+  selectedSite: string;
+  onSiteChange: (site: string) => void;
   onOpenRequestHistory: () => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -2719,17 +3102,7 @@ function Sidebar({ activePage, onNavigate, onOpenRequestHistory }: {
         <img src={collapsed ? "/assets/epx-mark.png" : "/assets/9d714.png"} alt="epx" className="epx-logo" />
       </div>
 
-      <div className="epx-site-switcher">
-        <div className="epx-site-card">
-          <div className="flex items-center gap-3">
-            <img src="/assets/device-management/504fb.svg" alt="" />
-            <div className="min-w-0">
-              <div className="epx-site-name">DWS</div>
-              <div className="epx-site-location">100 Crescent Tower</div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <SiteSwitcher portfolio={selectedPortfolio} setPortfolio={onPortfolioChange} site={selectedSite} setSite={onSiteChange} />
 
       <nav className="epx-nav flex flex-col" aria-label="Primary navigation">
         <div className="epx-nav-label">Portfolio</div>
@@ -2978,7 +3351,7 @@ function MeterDrawer({ meter, onClose, onPatch }: {
   const [serialTouched, setSerialTouched] = useState(false);
   const [serialRequestId, setSerialRequestId] = useState("");
   const [configuringSource, setConfiguringSource] = useState(false);
-  const [configSource, setConfigSource] = useState<"NEM12" | "Captis">("NEM12");
+  const [selectedConfigSource, setConfigSource] = useState<"NEM12" | "Captis">("NEM12");
   const [configNmi, setConfigNmi] = useState("");
   const [configSerial, setConfigSerial] = useState("");
   const [configValidFrom, setConfigValidFrom] = useState("");
@@ -2988,6 +3361,8 @@ function MeterDrawer({ meter, onClose, onPatch }: {
   const [confirmReconfig, setConfirmReconfig] = useState(false);
   const configApiRef = useRef<HTMLLabelElement>(null);
   const edgeReconfig = meter.source === "Edge G6";
+  const smartcomReconfig = /^smartcom/i.test(meter.source);
+  const configSource = smartcomReconfig ? "Captis" : selectedConfigSource;
 
   useEffect(() => {
     if (!configApiOpen) return;
@@ -3055,7 +3430,7 @@ function MeterDrawer({ meter, onClose, onPatch }: {
   const dirty = operationalDirty;
   const serialModalDirty = serialStep !== "submitted" && Boolean(newSerial || serialValidFrom || pendingSerialUpdate);
   const configModalDirty = Boolean(
-    configSource !== "NEM12" ||
+    (!smartcomReconfig && configSource !== "NEM12") ||
     configNmi || configSerial || configValidFrom || configCaptisId || configApiId ||
     confirmReconfig
   );
@@ -3264,7 +3639,7 @@ function MeterDrawer({ meter, onClose, onPatch }: {
                     ? () => openSerialEditor("captis", "update")
                     : openConfigureSource}
               >
-                Edit
+                Configure
               </button>
             )
           }
@@ -3282,15 +3657,11 @@ function MeterDrawer({ meter, onClose, onPatch }: {
             action={<button type="button" onClick={openSupplierEditor}>Edit</button>}
           >
             <div className="epx-contact-card">
-              <div className="epx-contact-person">
-                <span>{meter.contactName === "—" ? "—" : meter.contactName.split(/\s+/).map(part => part[0]).join("").slice(0, 2)}</span>
-                <div>
-                  <strong>{meter.contactName}</strong>
-                  <small>{supplierLabel(meter)}</small>
-                </div>
+              <div className="epx-contact-supplier">
+                <img src="/assets/device-panel/business.svg" width={24} height={24} alt="" />
+                <strong>{supplierLabel(meter)}</strong>
               </div>
               <ContactRow label="Email" value={meter.contactEmail} onCopied={() => setCopyToast(true)} />
-              <ContactRow label="Phone" value={meter.contactPhone} onCopied={() => setCopyToast(true)} />
             </div>
           </DrawerSection>
         )}
@@ -3553,7 +3924,9 @@ function MeterDrawer({ meter, onClose, onPatch }: {
                 <p>
                   {edgeReconfig
                     ? "Replace memory module connection with NEM12 or Captis device"
-                    : `Select a data source for ${meter.name}. This will replace the current connection.`}
+                    : smartcomReconfig
+                      ? "Replace current connection with Captis"
+                      : `Select a data source for ${meter.name}. This will replace the current connection.`}
                 </p>
               </div>
               <button type="button" onClick={confirmReconfig ? () => setConfirmReconfig(false) : closeConfigureSource} aria-label="Close">
@@ -3565,9 +3938,9 @@ function MeterDrawer({ meter, onClose, onPatch }: {
                 The device data source will be changed from EDGE Memory Module to NEM12/Captis. Would you like to fetch and process data from <strong>{reconfigDateLabel()}?</strong>
               </p>
             ) : (
-              <div className="epx-reconfig-body">
+              <div className={`epx-reconfig-body${smartcomReconfig ? " is-smartcom" : ""}`}>
                 <div className="epx-reconfig-row">
-                  <div className="epx-add-device-source">
+                  {!smartcomReconfig && <div className="epx-add-device-source">
                     <span>Data source</span>
                     <div>
                       {(["NEM12", "Captis"] as const).map(opt => (
@@ -3589,7 +3962,7 @@ function MeterDrawer({ meter, onClose, onPatch }: {
                         </button>
                       ))}
                     </div>
-                  </div>
+                  </div>}
                   {configSource === "Captis" ? (
                     <label className="epx-add-device-field">
                       <span>Cumulocity ID</span>
@@ -3867,8 +4240,8 @@ function operationalDraft(meter: Meter): OperationalDraft {
   };
 }
 
-const CRITICAL_REASONS = ["Tenant billing", "Monitoring for Insight", "NABERS", "Other"];
-const EXCLUDE_REASONS = ["Historical data only", "Handover issues outside project control", "Dummy meter", "Temporarily isolated (e.g. maintenance or renovations)"];
+const CRITICAL_REASONS = ["Main incomer", "Monitoring for Insight", "NABERS", "Tenant billing"];
+const EXCLUDE_REASONS = ["Commissioning", "Dummy meter", "Handover issues outside project control", "Historical data only", "Temporarily isolated (e.g. maintenance or renovations)"];
 const DISABLE_FOR = ["This device only", "All devices at this site", "All devices at all sites"];
 const DISABLE_FOR_DETAILS: Record<string, string> = {
   "All devices at this site": "2 devices for 100 Crescent Tower",
@@ -3983,7 +4356,9 @@ function OperationalForm({ draft, source, onChange }: {
               label="Apply to"
               value={draft.notificationScope || "This device only"}
               placeholder="This device only"
-              options={DISABLE_FOR}
+              options={/bacnet/i.test(source)
+                ? DISABLE_FOR.filter(option => option !== "All devices at all sites")
+                : DISABLE_FOR}
               optionDetails={DISABLE_FOR_DETAILS}
               onChange={notificationScope => onChange({ notificationScope })}
             />
@@ -4025,11 +4400,30 @@ function OperationalForm({ draft, source, onChange }: {
   );
 }
 
-function HeaderTooltip({ title, body, children }: { title: string; body: string; children: React.ReactNode }) {
+function HeaderTooltip({ title, body, children, compact = false }: { title: string; body: string; children: React.ReactNode; compact?: boolean }) {
   const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
+  const tooltip = anchor && (
+    <span className={`epx-tooltip${compact ? " epx-tooltip-compact" : ""}`} style={{ left: anchor.x, top: anchor.y }} role="tooltip">
+      {title && <strong>{title}</strong>}
+      <span>{body}</span>
+    </span>
+  );
   return (
     <span
       className="epx-header-tip"
+      tabIndex={compact ? 0 : undefined}
+      aria-label={compact ? body : undefined}
+      onFocus={compact ? event => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        setAnchor({ x: rect.left + rect.width / 2, y: rect.top });
+      } : undefined}
+      onBlur={compact ? () => setAnchor(null) : undefined}
+      onKeyDown={compact ? event => {
+        if (event.key === "Escape") {
+          event.stopPropagation();
+          setAnchor(null);
+        }
+      } : undefined}
       onMouseEnter={event => {
         const rect = event.currentTarget.getBoundingClientRect();
         setAnchor({ x: rect.left + rect.width / 2, y: rect.top });
@@ -4038,18 +4432,15 @@ function HeaderTooltip({ title, body, children }: { title: string; body: string;
       onClick={event => event.stopPropagation()}
     >
       {children}
-      {anchor && (
-        <span className="epx-tooltip" style={{ left: anchor.x, top: anchor.y }} role="tooltip">
-          <strong>{title}</strong>
-          <span>{body}</span>
-        </span>
-      )}
+      {compact ? createPortal(tooltip, document.body) : tooltip}
     </span>
   );
 }
 
-function SettingSelect({ label, value, placeholder, options, optionDetails, onChange }: {
+function SettingSelect({ label, ariaLabel, disabled = false, value, placeholder, options, optionDetails, onChange }: {
   label: string;
+  ariaLabel?: string;
+  disabled?: boolean;
   value: string;
   placeholder: string;
   options: string[];
@@ -4070,14 +4461,14 @@ function SettingSelect({ label, value, placeholder, options, optionDetails, onCh
   return (
     <div className="epx-field" ref={rootRef}>
       <span>{label}</span>
-      <button type="button" className={`epx-select-field${selectedDetail ? " has-supporting" : ""}`} aria-expanded={open} onClick={() => setOpen(current => !current)}>
+      <button type="button" className={`epx-select-field${selectedDetail ? " has-supporting" : ""}`} disabled={disabled} aria-label={ariaLabel} aria-expanded={open && !disabled} onClick={() => setOpen(current => !current)}>
         <span className={`epx-select-value${value ? "" : " is-placeholder"}`}>
           <span>{value || placeholder}</span>
           {selectedDetail && <small>{selectedDetail}</small>}
         </span>
         <img src="/assets/device-management/3c143.svg" alt="" />
       </button>
-      {open && (
+      {open && !disabled && (
         <div className="epx-select-menu" role="listbox">
           {options.map(option => {
             const detail = optionDetails?.[option];
@@ -4091,6 +4482,7 @@ function SettingSelect({ label, value, placeholder, options, optionDetails, onCh
                 onClick={() => {
                   onChange(option);
                   setOpen(false);
+                  if (ariaLabel) rootRef.current?.querySelector<HTMLButtonElement>(".epx-select-field")?.focus();
                 }}
               >
                 <span className="epx-select-option-copy">
